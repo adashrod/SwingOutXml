@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="SwingToolkit" default="jar" basedir=".">
+    <property name="build"            value="${basedir}/build"/>
+    <property name="src"              value="${basedir}/src"/>
+    <property name="main.java"        value="${src}/main/java"/>
+    <property name="main.resources"   value="${src}/main/resources"/>
+    <property name="app"              value="${basedir}/../../antout"/>
+    <property name="jar"              value="SwingToolkit.jar"/>
+
+    <target name="jar" depends="compile">
+        <mkdir dir="${app}"/>
+        <jar destfile="${app}/${jar}" basedir="${build}" manifest="${main.resources}/META-INF/MANIFEST.MF"/>
+    </target>
+
+    <target name="compile">
+        <mkdir dir="${build}"/>
+        <javac destdir="${build}" includeantruntime="false">
+            <src path="${main.java}"/>
+        </javac>
+
+        <copy todir="${build}">
+            <fileset dir="${main.resources}"/>
+        </copy>
+    </target>
+
+    <target name="clean">
+        <delete dir="${build}"/>
+        <delete file="${app}/${jar}"/>
+    </target>
+</project>
