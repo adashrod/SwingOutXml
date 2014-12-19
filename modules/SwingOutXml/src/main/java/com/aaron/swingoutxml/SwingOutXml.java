@@ -195,18 +195,17 @@ public class SwingOutXml {
                 throw new IllegalArgumentException(String.format("%s %s doesn't extend JComponent",
                     concreteComponentClass.getName(), fieldString.trim()));
             }
-            jComponent = (JComponent) concreteComponentClass.newInstance();
             finalComponentClass = concreteComponentClass;
         } else {
-            final SwingOutContainer swingOutContainer = (SwingOutContainer) componentClass.getDeclaredAnnotation(SwingOutContainer.class);
-            if (swingOutContainer == null) {
-                jComponent = (JComponent) componentClass.newInstance();
-            } else {
-                jComponent = (JComponent) SwingOutXml.create(componentClass);
-            }
             finalComponentClass = componentClass;
         }
-        if (leafTypeClasses.contains(finalComponentClass)) {
+        final SwingOutContainer swingOutContainer = (SwingOutContainer) finalComponentClass.getDeclaredAnnotation(SwingOutContainer.class);
+        if (swingOutContainer != null) {
+            jComponent = (JComponent) SwingOutXml.create(finalComponentClass);
+        } else {
+            jComponent = (JComponent) finalComponentClass.newInstance();
+        }
+        if (leafTypeClasses.contains(finalComponentClass)) { // todo: add support for things that extend JLabel, JButton, etc
             setText(xmlElement, jComponent);
         }
         return jComponent;
