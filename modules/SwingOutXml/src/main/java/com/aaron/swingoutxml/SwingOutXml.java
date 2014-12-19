@@ -43,7 +43,7 @@ import java.util.Map;
  *
  * @see com.aaron.swingoutxml.annotation.SwingOutContainer
  * @see com.aaron.swingoutxml.annotation.UiComponent
- * @see PostSetup
+ * @see com.aaron.swingoutxml.PostSetup
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 public class SwingOutXml {
@@ -79,29 +79,12 @@ public class SwingOutXml {
      * @throws NoSuchFieldException if the field specified in the XML DNE in the container
      */
     private static void setField(final Element element, final Container topLevelContainer, final JComponent jComponent) throws NoSuchFieldException {
-        final String fieldString = element.getAttribute(A_FIELD);
-        final String idString = element.getAttribute(A_ID);
-        if (fieldString != null && !fieldString.trim().isEmpty()) {
-            final Field field = topLevelContainer.getClass().getDeclaredField(fieldString);
-            field.setAccessible(true);
+        final Field field = findAssociatedField(element, topLevelContainer);
+        if (field != null) {
             try {
+                // todo: catch some exception if setting an incompatible type
                 field.set(topLevelContainer, jComponent);
             } catch (final IllegalAccessException ignored) {}
-            // todo: catch some exception if setting an incompatible type
-        } else if (idString != null && !idString.trim().isEmpty()) {
-            final Field[] fields = topLevelContainer.getClass().getDeclaredFields();
-            for (final Field field: fields) {
-                final UiComponent uiComponent = field.getDeclaredAnnotation(UiComponent.class);
-                if (uiComponent != null) {
-                    if (idString.equals(uiComponent.value())) {
-                        field.setAccessible(true);
-                        try {
-                            field.set(topLevelContainer, jComponent);
-                            break;
-                        } catch (final IllegalAccessException ignored) {}
-                    }
-                }
-            }
         }
     }
 
@@ -136,6 +119,44 @@ public class SwingOutXml {
     }
 
     /**
+     * Finds the field in topLevelContainer that should be associated with the XML element. First tries to find the field
+     * by the "field" attribute in element; if there is none, tries to find the field by its ID value of its UiComponent
+     * annotation.
+     * @see com.aaron.swingoutxml.annotation.UiComponent documentation for examples
+     * @param element the XML element describing a field
+     * @param topLevelContainer the Container on which to find a field
+     * @return the found field, or null if it couldn't be found
+     * @throws IllegalArgumentException invalid config that didn't match a field
+     */
+    private static Field findAssociatedField(final Element element, final Container topLevelContainer) {
+        final String fieldString = element.getAttribute(A_FIELD);
+        Field field = null;
+        if (fieldString != null && !fieldString.trim().isEmpty()) {
+            try {
+                field = topLevelContainer.getClass().getDeclaredField(fieldString.trim());
+            } catch (final NoSuchFieldException e) {
+                throw new IllegalArgumentException(String.format("can't find member \"%s\" in class %s", fieldString.trim(), topLevelContainer.getClass().getName()));
+            }
+        } else {
+            final String id = element.getAttribute(A_ID);
+            if (id != null && !id.trim().isEmpty()) {
+                final Field[] allFields = topLevelContainer.getClass().getDeclaredFields();
+                for (final Field f : allFields) {
+                    final UiComponent uiComponent = f.getDeclaredAnnotation(UiComponent.class);
+                    if (uiComponent != null && id.equals(uiComponent.value())) {
+                        field = f;
+                        break;
+                    }
+                }
+            }
+        }
+        if (field != null) {
+            field.setAccessible(true);
+        }
+        return field;
+    }
+
+    /**
      * Creates a JComponent from an XML element in a template, and sets the text if there is any.
      * @param topLevelContainer the container that contains (not necessarily directly) the component being created
      * @param xmlElement XML used to describe the new component
@@ -163,15 +184,9 @@ public class SwingOutXml {
         final JComponent jComponent;
         if (componentClass == JComponent.class) {
             final String fieldString = xmlElement.getAttribute(A_FIELD);
-            if (fieldString == null || fieldString.trim().isEmpty()) {
-                throw new IllegalArgumentException("when using JComponent in the XML, you must provide a field name of a member that is a concrete class.");
-            }
-            // todo: also support UiComponent("id"), consolidate that with ID-finding code in setField
-            final Field field;
-            try {
-                field = topLevelContainer.getClass().getDeclaredField(fieldString.trim());
-            } catch (final NoSuchFieldException e) {
-                throw new IllegalArgumentException(String.format("can't find member \"%s\" in class %s", fieldString.trim(), topLevelContainer.getClass().getName()));
+            final Field field = findAssociatedField(xmlElement, topLevelContainer);
+            if (field == null) {
+                throw new IllegalArgumentException("when using JComponent in the XML, you must provide a field name of a member that is a concrete class, or annotate a field and include the ID of an element in the XML.");
             }
             field.setAccessible(true);
             final Class concreteComponentClass = field.getType();
