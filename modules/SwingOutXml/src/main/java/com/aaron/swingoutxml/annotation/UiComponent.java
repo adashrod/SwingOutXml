@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * UiComponent is used on fields in GUI classes, e.g. on a JLabel that is a field in a JFrame, to bind that field
  * to the component specified in the XML declaration.
  *
- * It has an optional  value that specifies an XML element ID. If the value is omitted, then this is effectively a
+ * It has an optional value that specifies an XML element ID. If the value is omitted, then this is effectively a
  * marker annotation. If specified, it can be used to bind the field to that XML element by the element's ID attribute.
  * This is an alternative to specifying a field attribute in the XML and setting that to the name of the field. When
  * using the field XML attribute, the UiComponent annotation is not needed. When using the \@UiComponent with value, the
@@ -50,6 +50,7 @@ import java.lang.annotation.Target;
  *
  * The field attribute in the XML has higher precedence than the value of the annotation. Since using both methods of
  * binding is redundant, if both are specified the value of the \@UiComponent annotation will be ignored.
+ * @see com.aaron.swingoutxml.annotation.Listener
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 @Target({ElementType.FIELD})

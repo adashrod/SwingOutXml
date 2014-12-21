@@ -1,5 +1,6 @@
 package com.aaron.swingoutxml;
 
+import com.aaron.swingoutxml.annotation.Listener;
 import com.aaron.swingoutxml.annotation.SwingOutContainer;
 import com.aaron.swingoutxml.annotation.UiComponent;
 import com.aaron.swingoutxml.xml.XmlLoader;
@@ -19,16 +20,21 @@ import java.awt.Container;
 import java.awt.LayoutManager;
 import java.awt.Window;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.awt.event.MouseWheelListener;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.EventListener;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 // todo:
 // try to fix casting warnings with Class
@@ -55,7 +61,7 @@ public class SwingOutXml {
     private static final String A_TITLE = "title";
     private static final String A_VISIBLE = "visible";
     private static final String A_LAYOUT = "layout";
-    private static final String A_ACTION_LISTENERS = "action-listeners";
+    private static final String A_LISTENERS = "listeners";
 
     static {
         componentClasses.put("JButton", JButton.class);
@@ -141,7 +147,7 @@ public class SwingOutXml {
             final String id = element.getAttribute(A_ID);
             if (id != null && !id.trim().isEmpty()) {
                 final Field[] allFields = topLevelContainer.getClass().getDeclaredFields();
-                for (final Field f : allFields) {
+                for (final Field f: allFields) {
                     final UiComponent uiComponent = f.getDeclaredAnnotation(UiComponent.class);
                     if (uiComponent != null && id.equals(uiComponent.value())) {
                         field = f;
@@ -154,6 +160,49 @@ public class SwingOutXml {
             field.setAccessible(true);
         }
         return field;
+    }
+
+    // todo: can probably consolidate some code between this and findAssociatedField
+    private static Set<Field> findAssociatedListeners(final Element element, final Container topLevelContainer) {
+        final String listenersString = element.getAttribute(A_LISTENERS);
+        final Set<Field> fields = new HashSet<>();
+        if (listenersString != null && !listenersString.trim().isEmpty()) {
+            final String[] listenerNames = listenersString.split("\\s*,\\s*");
+            for (final String listenerName: listenerNames) {
+                if (listenerName.isEmpty()) {
+                    continue;
+                }
+                final Field field;
+                try {
+                    field = topLevelContainer.getClass().getDeclaredField(listenerName);
+                } catch (final NoSuchFieldException e) {
+                    throw new IllegalArgumentException(String.format("can't find member \"%s\" in class %s", listenerName.trim(), topLevelContainer.getClass().getName()));
+                }
+                field.setAccessible(true);
+                fields.add(field);
+            }
+        } else {
+            final String id = element.getAttribute(A_ID);
+            if (id != null && !id.trim().isEmpty()) {
+                final String trimmedId = id.trim();
+                final Field[] allFields = topLevelContainer.getClass().getDeclaredFields();
+                for (final Field field: allFields) {
+                    final Listener listener = field.getDeclaredAnnotation(Listener.class);
+                    if (listener == null) {
+                        continue;
+                    }
+                    for (final String listenerId: listener.value()) {
+                        if (trimmedId.equals(listenerId.trim())) {
+                            field.setAccessible(true);
+                            fields.add(field);
+                            break;
+                        }
+                    }
+                }
+
+            }
+        }
+        return fields;
     }
 
     /**
@@ -214,32 +263,38 @@ public class SwingOutXml {
     /**
      * Adds all specified ActionListeners to the button.
      * @param topLevelContainer the container that contains (not necessarily directly) the button
-     * @param button the button to add ActionListeners to
+     * @param component the button to add ActionListeners to
      * @param xmlElement XML element describing the button being modified
-     * @throws NoSuchFieldException if one of the specified ActionListeners DNE in the container
      */
-    private static void addActionListeners(final Container topLevelContainer, final AbstractButton button, final Element xmlElement)
-            throws NoSuchFieldException {
-        final String actionListenerString = xmlElement.getAttribute(A_ACTION_LISTENERS);
-        if (actionListenerString != null && !actionListenerString.isEmpty()) {
-            final String[] actionListenerNames = actionListenerString.split("\\s*,\\s*");
-            for (final String actionListenerName: actionListenerNames) {
-                if (actionListenerName.isEmpty()) {
-                    continue;
-                }
-                final Field field = topLevelContainer.getClass().getDeclaredField(actionListenerName);
-                field.setAccessible(true);
-                final ActionListener actionListener;
+    private static void addListeners(final Container topLevelContainer, final JComponent component, final Element xmlElement) {
+        final Set<Field> listenerFields = findAssociatedListeners(xmlElement, topLevelContainer);
+        for (final Field field: listenerFields) {
+            if (!EventListener.class.isAssignableFrom(field.getType())) {
+                throw new IllegalArgumentException(String.format("%s in %s is not an EventListener", field, topLevelContainer));
+            }
+            final EventListener listener;
+            try {
+                listener = (EventListener) field.get(topLevelContainer);
+            } catch (final IllegalAccessException iae) {
+                // impossible
+                continue;
+            }
+            if (listener instanceof MouseListener) {
+                component.addMouseListener((MouseListener) listener);
+            }
+            if (listener instanceof MouseMotionListener) {
+                component.addMouseMotionListener((MouseMotionListener) listener);
+            }
+            if (listener instanceof MouseWheelListener) {
+                component.addMouseWheelListener((MouseWheelListener) listener);
+            }
+            if (listener instanceof ActionListener) {
                 try {
-                    actionListener = (ActionListener) field.get(topLevelContainer);
-                } catch (final IllegalAccessException iae) {
-                    // impossible
-                    continue;
+                    ((AbstractButton) component).addActionListener((ActionListener) listener);
                 } catch (final ClassCastException cce) {
-                    throw new IllegalArgumentException(String.format("%s field in %s is not an ActionListener",
-                        actionListenerName, topLevelContainer.getClass().getName()));
+                    throw new IllegalArgumentException(String.format("%s is not an AbstractButton and therefore cannot accept the ActionListener %s",
+                        component, field));
                 }
-                button.addActionListener(actionListener);
             }
         }
     }
@@ -275,9 +330,7 @@ public class SwingOutXml {
         final JComponent jComponent = createJComponent(topLevelContainer, childElement);
         setField(childElement, topLevelContainer, jComponent);
         parentContainer.add(jComponent);
-        if (jComponent instanceof AbstractButton) {
-            addActionListeners(topLevelContainer, (AbstractButton) jComponent, childElement);
-        }
+        addListeners(topLevelContainer, jComponent, childElement);
         return jComponent;
     }
 
