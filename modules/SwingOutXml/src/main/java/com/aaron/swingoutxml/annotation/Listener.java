@@ -68,6 +68,7 @@ import java.lang.annotation.Target;
  * The listeners attribute in the XML has higher precedence than the value of the annotation. Since using both methods
  * of binding is redundant, if both are specified the value of the \@Listener will be ignored.
  * @see com.aaron.swingoutxml.annotation.UiComponent
+ * @see com.aaron.swingoutxml.annotation.ComponentAction
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 @Target(ElementType.FIELD)

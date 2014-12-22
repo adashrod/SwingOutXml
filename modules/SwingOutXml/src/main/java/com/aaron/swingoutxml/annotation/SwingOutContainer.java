@@ -58,6 +58,10 @@ import java.lang.annotation.Target;
  *     }
  * }
  *
+ * For details on configuring XML/annotations:
+ * @see com.aaron.swingoutxml.annotation.UiComponent
+ * @see com.aaron.swingoutxml.annotation.Listener
+ * @see com.aaron.swingoutxml.annotation.ComponentAction
  * @see com.aaron.swingoutxml.PostSetup
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
