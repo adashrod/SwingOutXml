@@ -131,14 +131,16 @@ public class SwingOutXml {
     }
 
     /**
-     *
-     * @param element
-     * @param topLevelContainer
-     * @param annotationType
-     * @param fieldNames
-     * @param callback
-     * @param allowMultiple
-     * @return
+     * Finds the field or fields specified by an XML element.
+     * @param element           the XML element
+     * @param topLevelContainer the class that contains the fields
+     * @param annotationType    the type of annotation to look at on found field(s)
+     * @param fieldNames        optional field names to look at. If this is empty, the fields will be searched for by
+     *                          examining ID values of the annotations on the fields
+     * @param callback          When iterating over fields looking for ones that match, this will be invoked on the
+     *                          annotation. It should return an Iterable of the IDs contained in the annotation's value
+     * @param allowMultiple     true: this will find all fields that match, false: only return the first match
+     * @return a Set of Fields that match the element, or a singleton set if allowMultiple is true and a match is found
      */
     private static Set<Field> findAssociatedFields(final Element element, final Container topLevelContainer,
             final Class<? extends Annotation> annotationType, final Collection<String> fieldNames,
@@ -194,7 +196,7 @@ public class SwingOutXml {
     private static Field findAssociatedField(final Element element, final Container topLevelContainer) {
         final String field = element.getAttribute(A_FIELD);
         final Collection<String> fieldSet = new HashSet<>();
-        if (field != null && !field.isEmpty()) {
+        if (field != null && !field.trim().isEmpty()) {
             fieldSet.add(field);
         }
         final Set<Field> fields = findAssociatedFields(element, topLevelContainer, UiComponent.class,
@@ -207,7 +209,7 @@ public class SwingOutXml {
     private static Set<Field> findAssociatedListeners(final Element element, final Container topLevelContainer) {
         final String listenersString = element.getAttribute(A_LISTENERS);
         final Collection<String> fieldSet = new HashSet<>();
-        if (listenersString != null && !listenersString.isEmpty()) {
+        if (listenersString != null && !listenersString.trim().isEmpty()) {
             Collections.addAll(fieldSet, listenersString.split("\\s*,\\s*"));
         }
         return findAssociatedFields(element, topLevelContainer, Listener.class, fieldSet, (final Annotation annotation) -> {
@@ -221,7 +223,7 @@ public class SwingOutXml {
     private static Field findAssociatedAction(final Element element, final Container topLevelContainer) {
         final String actionString = element.getAttribute(A_ACTION);
         final Collection<String> fieldSet = new HashSet<>();
-        if (actionString != null && !actionString.isEmpty()) {
+        if (actionString != null && !actionString.trim().isEmpty()) {
             Collections.addAll(fieldSet, actionString.split("\\s*,\\s*"));
         }
         final Set<Field> fields = findAssociatedFields(element, topLevelContainer, ComponentAction.class, fieldSet, (final Annotation annotation) -> {
