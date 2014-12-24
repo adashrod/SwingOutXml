@@ -42,7 +42,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 // todo:
-// try to fix casting warnings with Class
 // consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
 // add some proper exception handling
 /**
@@ -230,6 +229,8 @@ public class SwingOutXml {
 
     /**
      * Creates a JComponent from an XML element in a template, and sets the text if there is any.
+     * in the cases where Class casting is unchecked, it actually has been checked and an IllegalArgumentException is
+     * thrown if there's a problem
      * @param xmlElement XML used to describe the new component
      * @return the created component
      * @throws InstantiationException todo: audit these
@@ -239,18 +240,20 @@ public class SwingOutXml {
      * @throws NoSuchFieldException
      * @throws IOException
      */
+    @SuppressWarnings("unchecked")
     private JComponent createJComponent(final Element xmlElement)
             throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
-        final Class componentClass, finalComponentClass;
+        final Class<? extends JComponent> componentClass, finalComponentClass;
         if (componentClasses.containsKey(className)) {
             componentClass = componentClasses.get(className);
         } else {
-            componentClass = Class.forName(className);
-            if (!JComponent.class.isAssignableFrom(componentClass)) {
+            final Class customClass = Class.forName(className);
+            if (!JComponent.class.isAssignableFrom(customClass)) {
                 throw new IllegalArgumentException("custom element doesn't extend JComponent");
             }
+            componentClass = customClass;
         }
         final JComponent jComponent;
         if (componentClass == JComponent.class) {
@@ -274,11 +277,11 @@ public class SwingOutXml {
         } else {
             finalComponentClass = componentClass;
         }
-        final SwingOutContainer swingOutContainer = (SwingOutContainer) finalComponentClass.getDeclaredAnnotation(SwingOutContainer.class);
+        final SwingOutContainer swingOutContainer = finalComponentClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer != null) {
             jComponent = (JComponent) SwingOutXml.create(finalComponentClass);
         } else {
-            jComponent = (JComponent) finalComponentClass.newInstance();
+            jComponent = finalComponentClass.newInstance();
         }
         if (leafTypeClasses.contains(finalComponentClass)) { // todo: add support for things that extend JLabel, JButton, etc
             setText(xmlElement, jComponent);
