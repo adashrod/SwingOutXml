@@ -138,7 +138,7 @@ public class SwingOutXml {
      * @throws NoSuchFieldException
      */
     public static Container create(final Class<? extends Container> swingClass)
-        throws IOException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException {
+            throws IOException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException {
         final SwingOutContainer swingOutContainer = swingClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer == null) {
             throw new IllegalArgumentException("has to implement SwingOutContainer");
@@ -170,7 +170,7 @@ public class SwingOutXml {
             if (childNodes.getLength() > 1 || (childNodes.getLength() == 1 && childNodes.item(0).getNodeType() != Node.TEXT_NODE)) {
                 for (int i = 0; i < childNodes.getLength(); i++) {
                     final Node childNode = childNodes.item(i);
-                    final JComponent component = swingOutXml.processNode(childNode, pairedNode.container);
+                    final JComponent component = swingOutXml.processNode(pairedNode.container, childNode);
                     if (component != null) {
                         // component shouldn't be non-null if childNode isn't an Element
                         queue.addLast(new PairedTreeNode((Element) childNode, component));
@@ -196,8 +196,8 @@ public class SwingOutXml {
     /**
      * Processes an XML node, turning it into a JComponent if possible, and adding that component to its parent. Returns
      * null if the node isn't an element node
-     * @param xmlNode the XML node to transform
      * @param parentContainer the direct parent container of the new node
+     * @param xmlNode the XML node to transform
      * @return the created JComponent, or null if nothing was created
      * @throws InstantiationException todo: audit these from createJComponent
      * @throws IllegalAccessException
@@ -206,8 +206,8 @@ public class SwingOutXml {
      * @throws SAXException
      * @throws IOException
      */
-    private JComponent processNode(final Node xmlNode, final Container parentContainer)
-        throws InstantiationException, IllegalAccessException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException {
+    private JComponent processNode(final Container parentContainer, final Node xmlNode)
+            throws InstantiationException, IllegalAccessException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -221,8 +221,8 @@ public class SwingOutXml {
             return null;
         }
         final JComponent jComponent = createJComponent(childElement);
-        setFields(childElement, jComponent);
         parentContainer.add(jComponent);
+        setFields(childElement, jComponent);
         addListeners(childElement, jComponent);
         setAction(childElement, jComponent);
         return jComponent;
@@ -240,7 +240,7 @@ public class SwingOutXml {
      * @throws IOException
      */
     private JComponent createJComponent(final Element xmlElement)
-        throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException {
+            throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class componentClass, finalComponentClass;
