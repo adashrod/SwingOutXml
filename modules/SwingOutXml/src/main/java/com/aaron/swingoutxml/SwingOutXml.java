@@ -336,9 +336,7 @@ public class SwingOutXml {
         if (attributeValue != null && !attributeValue.trim().isEmpty()) {
             Collections.addAll(fieldNames, attributeValue.split("\\s*,\\s*"));
         }
-        fieldNames = fieldNames.stream().filter((final String s) -> {
-            return !s.trim().isEmpty();
-        }).collect(Collectors.toSet());
+        fieldNames = fieldNames.stream().filter((final String s) -> { return !s.trim().isEmpty(); }).collect(Collectors.toSet());
         final Set<Field> result = new HashSet<>();
         if (!fieldNames.isEmpty()) {
             for (final String fieldName: fieldNames) {
