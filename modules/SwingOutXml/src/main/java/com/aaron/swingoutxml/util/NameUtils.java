@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml;
+package com.aaron.swingoutxml.util;
 
 public class NameUtils {
     public static String dashedToCamel(final String dashedName) {

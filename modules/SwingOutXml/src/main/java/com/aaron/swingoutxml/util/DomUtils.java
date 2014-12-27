@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml;
+package com.aaron.swingoutxml.util;
 
 import org.w3c.dom.Element;
 
