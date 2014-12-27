@@ -12,12 +12,10 @@ import java.awt.LayoutManager;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Tool for building a LayoutManager
@@ -26,16 +24,16 @@ import java.util.stream.Collectors;
 public class LayoutBuilder {
     public static final String CONTENT_PANE_TOKEN = "contentPane";
     private static final Pattern stringArgPattern = Pattern.compile("(?:'([^']*)'|\"([^\"]*)\")");
-    private static final Collection<String> fqPrefixes = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*")).stream().collect(Collectors.toList());
 
-    private static void addParsedObject(final String string, final Collection<Object> arguments, final Collection<Class<?>> argTypes) {
-        final Pair<Class<?>, Object> pair = ReflectionUtils.parseConstant(fqPrefixes, string);
+    private static void addParsedObject(final Collection<String> packages, final String string,
+            final Collection<Object> arguments, final Collection<Class<?>> argTypes) {
+        final Pair<Class<?>, Object> pair = ReflectionUtils.parseConstant(packages, string);
         arguments.add(pair.getValue());
         argTypes.add(pair.getKey());
     }
 
-    private static Class[] parseArguments(final Collection<Object> arguments, final Container container,
-            final Iterable<String> constructorArgList) {
+    private static Class[] parseArguments(final Collection<String> packages, final Collection<Object> arguments,
+            final Container container, final Iterable<String> constructorArgList) {
         final List<Class<?>> argTypes = new ArrayList<>();
         if (constructorArgList != null) {
             for (final String arg: constructorArgList) {
@@ -63,7 +61,7 @@ public class LayoutBuilder {
                             arguments.add(Integer.parseInt(arg));
                             argTypes.add(int.class);
                         } catch (final NumberFormatException nfe) {
-                            addParsedObject(arg, arguments, argTypes);
+                            addParsedObject(packages, arg, arguments, argTypes);
                         }
                     }
                 }
@@ -86,15 +84,15 @@ public class LayoutBuilder {
      * @throws NoSuchMethodException
      * @throws InvocationTargetException
      */
-    public static LayoutManager buildLayout(final String className, final Container container,
+    public static LayoutManager buildLayout(final Collection<String> packages, final String className, final Container container,
             final Iterable<String> constructorArgList) throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
-        final Class rawClass = ReflectionUtils.classForName(fqPrefixes, className);
+        final Class rawClass = ReflectionUtils.classForName(packages, className);
         if (!LayoutManager.class.isAssignableFrom(rawClass)) {
             throw new IllegalArgumentException(String.format("%s does not extend LayoutManager", className));
         }
         @SuppressWarnings("unchecked") final Class<? extends LayoutManager> layoutClass = rawClass;
         final List<Object> arguments = new ArrayList<>();
-        final Class[] parameterTypes = parseArguments(arguments, container, constructorArgList);
+        final Class[] parameterTypes = parseArguments(packages, arguments, container, constructorArgList);
         final Constructor layoutConstructor = layoutClass.getDeclaredConstructor(parameterTypes);
         return (LayoutManager) layoutConstructor.newInstance(arguments.toArray());
     }

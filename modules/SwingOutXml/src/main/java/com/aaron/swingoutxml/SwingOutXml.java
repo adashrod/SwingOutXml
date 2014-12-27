@@ -6,7 +6,9 @@ import com.aaron.swingoutxml.annotation.SwingOutContainer;
 import com.aaron.swingoutxml.annotation.UiComponent;
 import com.aaron.swingoutxml.util.DomUtils;
 import com.aaron.swingoutxml.util.NameUtils;
+import com.aaron.swingoutxml.util.ReflectionUtils;
 import com.aaron.swingoutxml.xml.XmlLoader;
+import javafx.util.Pair;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -43,6 +46,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 // todo:
 // consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
@@ -63,11 +67,14 @@ public class SwingOutXml {
     private static final Map<String, Class<? extends JComponent>> componentClasses = new HashMap<>();
     private static final Collection<Class<? extends JComponent>> leafTypeClasses = new HashSet<>();
 
+    private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*")).stream().collect(Collectors.toList());
+
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
     private static final String A_TITLE = "title";
     private static final String A_VISIBLE = "visible";
     private static final String A_LAYOUT = "layout";
+    private static final String A_CONSTRAINTS = "constraints";
     private static final String A_CONSTRUCTOR_ARGS = "constructor-args";
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
@@ -219,7 +226,10 @@ public class SwingOutXml {
             return null;
         }
         final JComponent jComponent = createJComponent(childElement);
-        parentContainer.add(jComponent);
+        final String constraintsString = DomUtils.getAttribute(A_CONSTRAINTS, childElement);
+        final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseConstant(awtPackages, constraintsString);
+        final Object constraints = constraintsPair != null ? constraintsPair.getValue() : null;
+        parentContainer.add(jComponent, constraints);
         setFields(childElement, jComponent);
         addListeners(childElement, jComponent);
         setAction(childElement, jComponent);
@@ -337,7 +347,7 @@ public class SwingOutXml {
         final String layout = DomUtils.getAttribute(A_LAYOUT, element);
         if (layout != null) {
             final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, element);
-            final LayoutManager layoutManager = LayoutBuilder.buildLayout(layout, container, layoutConstructorArgs);
+            final LayoutManager layoutManager = LayoutBuilder.buildLayout(awtPackages, layout, container, layoutConstructorArgs);
             container.setLayout(layoutManager);
         }
     }

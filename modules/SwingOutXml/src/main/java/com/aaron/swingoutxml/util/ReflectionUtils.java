@@ -93,20 +93,23 @@ public class ReflectionUtils {
      */
     public static Pair<Class<?>, Object> parseConstant(final Collection<String> potentialPrefixes, final String constantName) {
         Pair<Class<?>, Object> result = null;
-        try {
-            result = parseConstant("", constantName);
-        } catch (final IllegalArgumentException iae) {
-            for (final String prefix: potentialPrefixes) {
-                try {
-                    result = parseConstant(prefix, constantName);
-                } catch (final IllegalArgumentException ignored) {}
-            }
-            if (result == null) {
-                final String prefixes = potentialPrefixes.stream().reduce((final String s1, final String s2) -> {
-                    return String.format("%s, %s", s1, s2);
-                }).get();
-                throw new IllegalArgumentException(String.format("Couldn't dereference %s by itself, or by prefixing it with any of: %s",
-                    constantName, prefixes));
+        if (constantName != null) {
+            try {
+                result = parseConstant("", constantName);
+            } catch (final IllegalArgumentException iae) {
+                for (final String prefix : potentialPrefixes) {
+                    try {
+                        result = parseConstant(prefix, constantName);
+                    } catch (final IllegalArgumentException ignored) {
+                    }
+                }
+                if (result == null) {
+                    final String prefixes = potentialPrefixes.stream().reduce((final String s1, final String s2) -> {
+                        return String.format("%s, %s", s1, s2);
+                    }).get();
+                    throw new IllegalArgumentException(String.format("Couldn't dereference %s by itself, or by prefixing it with any of: %s",
+                        constantName, prefixes));
+                }
             }
         }
         return result;
