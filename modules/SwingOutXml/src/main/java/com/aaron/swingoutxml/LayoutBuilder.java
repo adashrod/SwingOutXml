@@ -1,5 +1,8 @@
 package com.aaron.swingoutxml;
 
+import com.aaron.swingoutxml.util.ReflectionUtils;
+import javafx.util.Pair;
+
 import javax.swing.JApplet;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
@@ -7,13 +10,11 @@ import javax.swing.JWindow;
 import java.awt.Container;
 import java.awt.LayoutManager;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -25,74 +26,12 @@ import java.util.stream.Collectors;
 public class LayoutBuilder {
     public static final String CONTENT_PANE_TOKEN = "contentPane";
     private static final Pattern stringArgPattern = Pattern.compile("(?:'([^']*)'|\"([^\"]*)\")");
-    private static final String prefixes = "java.awt, javax.swing";
-    private static final Set<String> fqPrefixes = Arrays.asList(prefixes.split("\\s*,\\s*")).stream().collect(Collectors.toSet());
-
-    private static void addParsedObject(final String fqPrefix, final String string, final Collection<Object> arguments,
-            final Collection<Class<?>> argTypes) {
-        final String wholeString = fqPrefix.isEmpty() ? string : String.format("%s.%s", fqPrefix, string);
-        int pos = -1;
-        Class<?> c = null;
-        while (c == null) {
-            pos = wholeString.indexOf('.', pos + 1);
-            if (pos == -1) {
-                break;
-            }
-            try {
-                c = Class.forName(wholeString.substring(0, pos));
-            } catch (final ClassNotFoundException e) {
-                // continue;
-            }
-        }
-        if (c == null) {
-            throw new IllegalArgumentException(String.format("Couldn't parse \"%s\"", wholeString));
-        }
-        final String topClass = wholeString.substring(0, pos);
-        final int lastDot = wholeString.lastIndexOf('.');
-        String className = topClass;
-        if (lastDot != pos) {
-            final String innerClasses = wholeString.substring(pos + 1, lastDot).replace('.', '$');
-            className += "$" + innerClasses;
-        }
-        try {
-            c = Class.forName(className);
-        } catch (final ClassNotFoundException e) {
-            throw new IllegalArgumentException(String.format("Couldn't parse \"%s\"", wholeString));
-        }
-        final Field field;
-        try {
-            field = c.getDeclaredField(wholeString.substring(lastDot + 1));
-            field.setAccessible(true);
-        } catch (final NoSuchFieldException e) {
-            throw new IllegalArgumentException(String.format("Couldn't parse \"%s\"", wholeString));
-        }
-        Object obj = null;
-        try {
-            obj = field.get(null);
-        } catch (final IllegalAccessException e) {
-            // impossible
-        }
-        arguments.add(obj);
-        argTypes.add(field.getType());
-
-    }
+    private static final Collection<String> fqPrefixes = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*")).stream().collect(Collectors.toList());
 
     private static void addParsedObject(final String string, final Collection<Object> arguments, final Collection<Class<?>> argTypes) {
-        try {
-            addParsedObject("", string, arguments, argTypes);
-        } catch (final IllegalArgumentException iae) {
-            boolean success = false;
-            for (final String prefix: fqPrefixes) {
-                try {
-                    addParsedObject(prefix, string, arguments, argTypes);
-                    success = true;
-                } catch (final IllegalArgumentException ignored) {}
-            }
-            if (!success) {
-                throw new IllegalArgumentException(String.format("Couldn't dereference %s by itself, or by prefixing it with any of: %s",
-                    string, prefixes));
-            }
-        }
+        final Pair<Class<?>, Object> pair = ReflectionUtils.parseConstant(fqPrefixes, string);
+        arguments.add(pair.getValue());
+        argTypes.add(pair.getKey());
     }
 
     private static Class[] parseArguments(final Collection<Object> arguments, final Container container,
@@ -134,20 +73,6 @@ public class LayoutBuilder {
         return new Class[]{};
     }
 
-    private static Class getClass(final String className) {
-        try {
-            return Class.forName(className);
-        } catch (final ClassNotFoundException cnf) {
-            for (final String prefix: fqPrefixes) {
-                try {
-                    return Class.forName(prefix + "." + className);
-                } catch (final ClassNotFoundException ignored) {}
-            }
-            throw new IllegalArgumentException(String.format("Couldn't instantiate %s by itself, or by prefixing it with any of: %s",
-                className, prefixes));
-        }
-    }
-
     /**
      * Creates a LayoutManager given the parameters. className can be a fully qualified class name or just the class
      * name itself if it's located in the java.awt or javax.swing packages.
@@ -163,7 +88,7 @@ public class LayoutBuilder {
      */
     public static LayoutManager buildLayout(final String className, final Container container,
             final Iterable<String> constructorArgList) throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
-        final Class rawClass = getClass(className);
+        final Class rawClass = ReflectionUtils.classForName(fqPrefixes, className);
         if (!LayoutManager.class.isAssignableFrom(rawClass)) {
             throw new IllegalArgumentException(String.format("%s does not extend LayoutManager", className));
         }
