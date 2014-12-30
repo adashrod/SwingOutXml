@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 
 // todo:
 // consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
-// add some logic for passing arguments to add(), e.g. for add(blah, BorderLayout.NORTH)
 // add some proper exception handling
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
@@ -227,8 +226,11 @@ public class SwingOutXml {
         }
         final JComponent jComponent = createJComponent(childElement);
         final String constraintsString = DomUtils.getAttribute(A_CONSTRAINTS, childElement);
-        final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseConstant(awtPackages, constraintsString);
-        final Object constraints = constraintsPair != null ? constraintsPair.getValue() : null;
+        Object constraints = null;
+        if (constraintsString != null) {
+            final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, awtPackages, constraintsString);
+            constraints = constraintsPair.getValue();
+        }
         parentContainer.add(jComponent, constraints);
         setFields(childElement, jComponent);
         addListeners(childElement, jComponent);

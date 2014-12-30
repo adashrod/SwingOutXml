@@ -4,11 +4,17 @@ import javafx.util.Pair;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Tools for doing reflective operations such as parsing strings as code
  */
 public class ReflectionUtils {
+    private static final Pattern stringArgPattern = Pattern.compile("(?:'([^']*)'|\"([^\"]*)\")");
+    private static final Pattern keywordPattern = Pattern.compile("(\\{[^}]*\\})");
+
     /**
      * Attempts to get a Class by its name. This is just a wrapper for {@link Class#forName(String)}, except that it also
      * attempts to get a class by prefixing className with every entry in potentialPrefixes until one is found.
@@ -100,8 +106,7 @@ public class ReflectionUtils {
                 for (final String prefix : potentialPrefixes) {
                     try {
                         result = parseConstant(prefix, constantName);
-                    } catch (final IllegalArgumentException ignored) {
-                    }
+                    } catch (final IllegalArgumentException ignored) {}
                 }
                 if (result == null) {
                     final String prefixes = potentialPrefixes.stream().reduce((final String s1, final String s2) -> {
@@ -113,5 +118,82 @@ public class ReflectionUtils {
             }
         }
         return result;
+    }
+
+    /**
+     * Parses a string, such as "top.width" where top is a member of context and width is a member of top. Currently only
+     * supports getting fields on context's class, not on any of its superclasses or superinterfaces.
+     * @param context    the context object
+     * @param fieldToken a dot-delimited string of members
+     * @return a pair containing the found field and its class. It's necessary to include them separately because if
+     *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
+     *         the primitive class
+     * @throws java.lang.IllegalArgumentException if any of the fields couldn't be found
+     */
+    public static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) {
+        if (fieldToken == null || fieldToken.isEmpty()) {
+            throw new IllegalArgumentException(String.format("Can't parse a null/empty field from %s", context));
+        }
+        final String[] fields = fieldToken.split("\\s*\\.\\s*");
+        Object obj = context;
+        Field f = null;
+        for (final String field: fields) {
+            try {
+                f = obj.getClass().getDeclaredField(field);
+            } catch (final NoSuchFieldException nsfe) {
+                throw new IllegalArgumentException(String.format("Can't find field \"%s\" in object %s", field, obj));
+            }
+            f.setAccessible(true);
+            try {
+                obj = f.get(obj);
+            } catch (final IllegalAccessException ignored) {}
+        }
+        return new Pair<>(f.getType(), obj);
+    }
+
+    /**
+     * Parses a token. The token could be an int, a string literal 'str' or "str", a keyword that is present in keywordMap,
+     * a constant (see {@link com.aaron.swingoutxml.util.ReflectionUtils#parseConstant(java.util.Collection, String)})
+     * or a field (see {@link com.aaron.swingoutxml.util.ReflectionUtils#parseField(Object, String)}
+     * @param context           context object for parsing fields
+     * @param keywordMap        keyword map for parsing keywords
+     * @param potentialPrefixes a collection of packages that the class might be in, when parsing a constant
+     * @param token             the string to parse
+     * @return a pair containing the parsed object and its class. It's necessary to include them separately because if
+     *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
+     *         the primitive class
+     * @throws java.lang.IllegalArgumentException if the token couldn't be parsed
+     */
+    public static Pair<Class<?>, Object> parseToken(final Object context, final Map<String, Object> keywordMap,
+            final Collection<String> potentialPrefixes, final String token) {
+        final Matcher stringMatcher = stringArgPattern.matcher(token);
+        if (stringMatcher.matches()) {
+            final String s = stringMatcher.group(1) != null ? stringMatcher.group(1) : stringMatcher.group(2);
+            return new Pair<>(String.class, s);
+        } else {
+            final Matcher keywordMatcher = keywordPattern.matcher(token);
+            if (keywordMatcher.matches()) {
+                final String keyword = keywordMatcher.group(1);
+                if (keywordMap == null) {
+                    throw new IllegalArgumentException(String.format("Unable to get keyword \"%s\" from null map", keyword));
+                }
+                if (!keywordMap.containsKey(keyword)) {
+                    throw new IllegalArgumentException(String.format("Keyword \"%s\" was missing in map %s", keyword, keywordMap));
+                }
+                final Object o = keywordMap.get(keyword);
+                return new Pair<>(o.getClass(), o);
+            } else {
+                try {
+                    final int i = Integer.parseInt(token);
+                    return new Pair<>(int.class, i);
+                } catch (final NumberFormatException nfe) {
+                    try {
+                        return parseConstant(potentialPrefixes, token);
+                    } catch (final IllegalArgumentException iae) {
+                        return parseField(context, token);
+                    }
+                }
+            }
+        }
     }
 }
