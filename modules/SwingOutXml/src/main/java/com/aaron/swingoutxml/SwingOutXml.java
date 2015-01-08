@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 // todo:
 // consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
 // add some proper exception handling
+// put XML attributes somewhere else
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
  * JFrame/JDialog/etc then using add(), layout is done in an XML template file. A class implements
