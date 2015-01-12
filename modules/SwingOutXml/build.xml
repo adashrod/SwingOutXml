@@ -5,7 +5,7 @@
     <property name="main.java"        value="${src}/main/java"/>
     <property name="main.resources"   value="${src}/main/resources"/>
     <property name="app"              value="${basedir}/../../antout"/>
-    <property name="jar"              value="SwingToolkit.jar"/>
+    <property name="jar"              value="swingoutxml-0.1.jar"/>
 
     <target name="jar" depends="compile">
         <mkdir dir="${app}"/>

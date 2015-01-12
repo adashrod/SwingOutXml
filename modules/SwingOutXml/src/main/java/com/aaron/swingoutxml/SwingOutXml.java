@@ -29,7 +29,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelListener;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -75,7 +74,7 @@ public class SwingOutXml {
     private static final String A_VISIBLE = "visible";
     private static final String A_LAYOUT = "layout";
     private static final String A_CONSTRAINTS = "constraints";
-    private static final String A_CONSTRUCTOR_ARGS = "constructor-args";
+    private static final String A_CONSTRUCTOR_ARGS = "layout-constructor-args";
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
 
@@ -154,7 +153,7 @@ public class SwingOutXml {
             throw new IllegalArgumentException("has to implement SwingOutContainer");
         }
         final String templateFile = swingOutContainer.template();
-        final Document xmlDoc = XmlLoader.load(new File(templateFile));
+        final Document xmlDoc = new XmlLoader().load(templateFile);
         final Element rootElement = (Element) xmlDoc.getChildNodes().item(0); // todo: make this account for comments
 
         // todo put in processNode?
