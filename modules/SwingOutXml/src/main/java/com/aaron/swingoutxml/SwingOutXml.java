@@ -19,9 +19,11 @@ import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import java.awt.Container;
 import java.awt.LayoutManager;
 import java.awt.Window;
@@ -77,15 +79,19 @@ public class SwingOutXml {
     private static final String A_CONSTRUCTOR_ARGS = "layout-constructor-args";
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
+    // todo: attributes
+    // enabled, editable, preferred-size
 
     static {
         componentClasses.put("JButton", JButton.class);
+        componentClasses.put("JComponent", JComponent.class);
         componentClasses.put("JLabel", JLabel.class);
         componentClasses.put("JPanel", JPanel.class);
-        componentClasses.put("JComponent", JComponent.class);
+        componentClasses.put("JTextArea", JTextArea.class);
 
         leafTypeClasses.add(JButton.class);
         leafTypeClasses.add(JLabel.class);
+        leafTypeClasses.add(JTextArea.class);
     }
 
     private final Container topLevelContainer;
@@ -147,7 +153,12 @@ public class SwingOutXml {
      * @throws NoSuchFieldException
      */
     public static Container create(final Class<? extends Container> swingClass)
-            throws IOException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException, NoSuchMethodException, InvocationTargetException {
+            throws IOException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException, InvocationTargetException {
+// todo: stuff to add to heavyweight component's XML attributes
+//        JFrame: graphicsConfiguration (c only)
+//        JWindow: owner (c only), graphicsConfiguration (c only)
+//        JDialog: owner (c only), modal, modality, graphicsConfiguration (c only)
+
         final SwingOutContainer swingOutContainer = swingClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer == null) {
             throw new IllegalArgumentException("has to implement SwingOutContainer");
@@ -211,7 +222,7 @@ public class SwingOutXml {
      * @throws IOException
      */
     private JComponent processNode(final Container parentContainer, final Node xmlNode)
-            throws InstantiationException, IllegalAccessException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException, NoSuchMethodException, InvocationTargetException {
+            throws InstantiationException, IllegalAccessException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -253,7 +264,7 @@ public class SwingOutXml {
      */
     @SuppressWarnings("unchecked")
     private JComponent createJComponent(final Element xmlElement)
-            throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException, NoSuchMethodException, InvocationTargetException {
+            throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException, InvocationTargetException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class<? extends JComponent> componentClass, finalComponentClass;
@@ -331,6 +342,11 @@ public class SwingOutXml {
         }
         if (container instanceof JFrame) {
             ((JFrame) topLevelContainer).setTitle(title);
+        } else if (container instanceof JDialog) {
+            ((JDialog) topLevelContainer).setTitle(title);
+        } else {
+            // todo: add more context
+            throw new IllegalArgumentException(String.format("The title attribute is not supported on %s elements", rootElement.getTagName()));
         }
         // todo: finish this list
     }
@@ -340,16 +356,21 @@ public class SwingOutXml {
      * @param element   the XML element that was used to instantiate the JComponent
      * @param container container to set a layout on
      * @throws InvocationTargetException
-     * @throws NoSuchMethodException
      * @throws InstantiationException
      * @throws IllegalAccessException
      */
     private void setLayout(final Element element, final Container container)
-            throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+            throws InvocationTargetException, InstantiationException, IllegalAccessException {
         final String layout = DomUtils.getAttribute(A_LAYOUT, element);
         if (layout != null) {
             final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, element);
-            final LayoutManager layoutManager = LayoutBuilder.buildLayout(awtPackages, layout, container, layoutConstructorArgs);
+            final LayoutManager layoutManager;
+            try {
+                layoutManager = LayoutBuilder.buildLayout(awtPackages, layout, container, layoutConstructorArgs);
+            } catch (final NoSuchMethodException nsme) {
+                throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
+                    layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), nsme);
+            }
             container.setLayout(layoutManager);
         }
     }
@@ -491,6 +512,7 @@ public class SwingOutXml {
             if (field != null) {
                 try {
                     button.setAction((Action) field.get(topLevelContainer));
+                    // todo: override action name with xml node value
                 } catch (final IllegalAccessException e) {
                     // impossible
                 }
