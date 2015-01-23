@@ -82,9 +82,7 @@ public class ReflectionUtils {
         Object obj = null;
         try {
             obj = field.get(null);
-        } catch (final IllegalAccessException e) {
-            // impossible
-        }
+        } catch (final IllegalAccessException ignored) {}
         return new Pair<>(field.getType(), obj);
     }
 

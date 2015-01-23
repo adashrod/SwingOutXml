@@ -147,13 +147,12 @@ public class SwingOutXml {
      * {@link PostSetup}, afterCreate is run as the last step.
      * @param swingClass the class to instantiate
      * @throws FileNotFoundException
-     * @throws IllegalAccessException if the swingClass default constructor isn't public todo: make sure all other instances of this exception are caught and ignored
      * @throws InstantiationException
      * @throws ClassNotFoundException
      * @throws NoSuchFieldException
      */
     public static Container create(final Class<? extends Container> swingClass)
-            throws IOException, IllegalAccessException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException, InvocationTargetException {
+            throws IOException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException, InvocationTargetException {
 // todo: stuff to add to heavyweight component's XML attributes
 //        JFrame: graphicsConfiguration (c only)
 //        JWindow: owner (c only), graphicsConfiguration (c only)
@@ -168,7 +167,13 @@ public class SwingOutXml {
         final Element rootElement = (Element) xmlDoc.getChildNodes().item(0); // todo: make this account for comments
 
         // todo put in processNode?
-        final Container topLevelContainer = swingClass.newInstance();
+        final Container topLevelContainer;
+        try {
+            topLevelContainer = swingClass.newInstance();
+        } catch (final IllegalAccessException iae) {
+            //  shouldn't be a problem, but will probably be refactored out when instantiation is dependent on XML root element
+            throw new IllegalArgumentException(iae);
+        }
 
         final SwingOutXml swingOutXml = new SwingOutXml(topLevelContainer);
 
@@ -215,14 +220,13 @@ public class SwingOutXml {
      * @param xmlNode the XML node to transform
      * @return the created JComponent, or null if nothing was created
      * @throws InstantiationException todo: audit these from createJComponent
-     * @throws IllegalAccessException
      * @throws NoSuchFieldException problem finding a field by name in setting up component attributes
      * @throws ClassNotFoundException
      * @throws SAXException
      * @throws IOException
      */
     private JComponent processNode(final Container parentContainer, final Node xmlNode)
-            throws InstantiationException, IllegalAccessException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
+            throws InstantiationException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -257,14 +261,13 @@ public class SwingOutXml {
      * @return the created component
      * @throws InstantiationException todo: audit these
      * @throws ClassNotFoundException
-     * @throws IllegalAccessException
      * @throws SAXException
      * @throws NoSuchFieldException
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     private JComponent createJComponent(final Element xmlElement)
-            throws InstantiationException, ClassNotFoundException, IllegalAccessException, SAXException, NoSuchFieldException, IOException, InvocationTargetException {
+            throws InstantiationException, ClassNotFoundException, SAXException, NoSuchFieldException, IOException, InvocationTargetException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class<? extends JComponent> componentClass, finalComponentClass;
@@ -302,7 +305,11 @@ public class SwingOutXml {
         if (swingOutContainer != null) {
             jComponent = (JComponent) SwingOutXml.create(finalComponentClass);
         } else {
-            jComponent = finalComponentClass.newInstance();
+            try {
+                jComponent = finalComponentClass.newInstance();
+            } catch (final IllegalAccessException iae) {
+                throw new IllegalArgumentException(String.format("Default constructor for %s is not public", finalComponentClass.getName()), iae);
+            }
         }
         setTitle(xmlElement, jComponent);
         setLayout(xmlElement, jComponent);
@@ -357,10 +364,9 @@ public class SwingOutXml {
      * @param container container to set a layout on
      * @throws InvocationTargetException
      * @throws InstantiationException
-     * @throws IllegalAccessException
      */
     private void setLayout(final Element element, final Container container)
-            throws InvocationTargetException, InstantiationException, IllegalAccessException {
+            throws InvocationTargetException, InstantiationException {
         final String layout = DomUtils.getAttribute(A_LAYOUT, element);
         if (layout != null) {
             final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, element);
@@ -370,6 +376,9 @@ public class SwingOutXml {
             } catch (final NoSuchMethodException nsme) {
                 throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
                     layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), nsme);
+            } catch (final IllegalAccessException iae) {
+                throw new IllegalArgumentException(String.format("Constructor for %s with the signature: %s is not public",
+                    layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), iae);
             }
             container.setLayout(layoutManager);
         }
@@ -513,9 +522,7 @@ public class SwingOutXml {
                 try {
                     button.setAction((Action) field.get(topLevelContainer));
                     // todo: override action name with xml node value
-                } catch (final IllegalAccessException e) {
-                    // impossible
-                }
+                } catch (final IllegalAccessException ignored) {}
             }
         }
     }
