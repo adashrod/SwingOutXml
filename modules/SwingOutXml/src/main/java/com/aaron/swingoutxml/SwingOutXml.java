@@ -31,7 +31,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelListener;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -146,12 +145,12 @@ public class SwingOutXml {
      * {@link com.aaron.swingoutxml.annotation.SwingOutContainer} annotation. If swingClass implements
      * {@link PostSetup}, afterCreate is run as the last step.
      * @param swingClass the class to instantiate
-     * @throws FileNotFoundException
-     * @throws InstantiationException
-     * @throws ClassNotFoundException
+     * @throws IOException
+     * @throws SAXException
+     * @throws InvocationTargetException
      */
     public static Container create(final Class<? extends Container> swingClass)
-            throws IOException, InstantiationException, ClassNotFoundException, SAXException, InvocationTargetException {
+            throws IOException, SAXException, InvocationTargetException {
 // todo: stuff to add to heavyweight component's XML attributes
 //        JFrame: graphicsConfiguration (c only)
 //        JWindow: owner (c only), graphicsConfiguration (c only)
@@ -169,9 +168,9 @@ public class SwingOutXml {
         final Container topLevelContainer;
         try {
             topLevelContainer = swingClass.newInstance();
-        } catch (final IllegalAccessException iae) {
+        } catch (final IllegalAccessException | InstantiationException e) {
             //  shouldn't be a problem, but will probably be refactored out when instantiation is dependent on XML root element
-            throw new IllegalArgumentException(iae);
+            throw new IllegalArgumentException(e);
         }
 
         final SwingOutXml swingOutXml = new SwingOutXml(topLevelContainer);
@@ -218,13 +217,12 @@ public class SwingOutXml {
      * @param parentContainer the direct parent container of the new node
      * @param xmlNode the XML node to transform
      * @return the created JComponent, or null if nothing was created
-     * @throws InstantiationException todo: audit these from createJComponent
-     * @throws ClassNotFoundException
      * @throws SAXException
      * @throws IOException
+     * @throws InvocationTargetException
      */
     private JComponent processNode(final Container parentContainer, final Node xmlNode)
-            throws InstantiationException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
+            throws SAXException, IOException, InvocationTargetException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -257,21 +255,24 @@ public class SwingOutXml {
      * thrown if there's a problem
      * @param xmlElement XML used to describe the new component
      * @return the created component
-     * @throws InstantiationException todo: audit these
-     * @throws ClassNotFoundException
      * @throws SAXException
      * @throws IOException
+     * @throws InvocationTargetException
      */
     @SuppressWarnings("unchecked")
-    private JComponent createJComponent(final Element xmlElement)
-            throws InstantiationException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
+    private JComponent createJComponent(final Element xmlElement) throws SAXException, IOException, InvocationTargetException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class<? extends JComponent> componentClass, finalComponentClass;
         if (componentClasses.containsKey(className)) {
             componentClass = componentClasses.get(className);
         } else {
-            final Class customClass = Class.forName(className);
+            final Class customClass;
+            try {
+                customClass = Class.forName(className);
+            } catch (final ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException(String.format("Unable to find class %s from XML: %s", className, xmlElement), cnfe);
+            }
             if (!JComponent.class.isAssignableFrom(customClass)) {
                 throw new IllegalArgumentException("custom element doesn't extend JComponent");
             }
@@ -306,6 +307,8 @@ public class SwingOutXml {
                 jComponent = finalComponentClass.newInstance();
             } catch (final IllegalAccessException iae) {
                 throw new IllegalArgumentException(String.format("Default constructor for %s is not public", finalComponentClass.getName()), iae);
+            } catch (final InstantiationException ie) {
+                throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalComponentClass.getName(), xmlElement), ie);
             }
         }
         setTitle(xmlElement, jComponent);
@@ -360,10 +363,8 @@ public class SwingOutXml {
      * @param element   the XML element that was used to instantiate the JComponent
      * @param container container to set a layout on
      * @throws InvocationTargetException
-     * @throws InstantiationException
      */
-    private void setLayout(final Element element, final Container container)
-            throws InvocationTargetException, InstantiationException {
+    private void setLayout(final Element element, final Container container) throws InvocationTargetException {
         final String layout = DomUtils.getAttribute(A_LAYOUT, element);
         if (layout != null) {
             final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, element);
@@ -376,6 +377,8 @@ public class SwingOutXml {
             } catch (final IllegalAccessException iae) {
                 throw new IllegalArgumentException(String.format("Constructor for %s with the signature: %s is not public",
                     layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), iae);
+            } catch (final InstantiationException ie) {
+                throw new IllegalArgumentException(String.format("Unable to instantiate layout %s", layout), ie);
             }
             container.setLayout(layoutManager);
         }

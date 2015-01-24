@@ -23,7 +23,7 @@ public class ReflectionUtils {
      * @param potentialPrefixes a collection of packages that the class might be in
      * @param className a class name to find
      * @return the found class
-     * @throws java.lang.IllegalArgumentException if the class couldn't be found
+     * @throws IllegalArgumentException if the class couldn't be found
      */
     public static Class<?> classForName(final Collection<String> potentialPrefixes, final String className) {
         try {
@@ -93,7 +93,7 @@ public class ReflectionUtils {
      * @return a pair containing the found constant and its class. It's necessary to include them separately because if
      *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
      *         the primitive class
-     * @throws java.lang.IllegalArgumentException if the class couldn't be found
+     * @throws IllegalArgumentException if the class couldn't be found
      */
     public static Pair<Class<?>, Object> parseConstant(final Collection<String> potentialPrefixes, final String constantName) {
         Pair<Class<?>, Object> result = null;
@@ -126,7 +126,7 @@ public class ReflectionUtils {
      * @return a pair containing the found field and its class. It's necessary to include them separately because if
      *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
      *         the primitive class
-     * @throws java.lang.IllegalArgumentException if any of the fields couldn't be found
+     * @throws IllegalArgumentException if any of the fields couldn't be found
      */
     public static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) {
         if (fieldToken == null || fieldToken.isEmpty()) {
@@ -160,7 +160,7 @@ public class ReflectionUtils {
      * @return a pair containing the parsed object and its class. It's necessary to include them separately because if
      *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
      *         the primitive class
-     * @throws java.lang.IllegalArgumentException if the token couldn't be parsed
+     * @throws IllegalArgumentException if the token couldn't be parsed
      */
     public static Pair<Class<?>, Object> parseToken(final Object context, final Map<String, Object> keywordMap,
             final Collection<String> potentialPrefixes, final String token) {
