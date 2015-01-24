@@ -149,10 +149,9 @@ public class SwingOutXml {
      * @throws FileNotFoundException
      * @throws InstantiationException
      * @throws ClassNotFoundException
-     * @throws NoSuchFieldException
      */
     public static Container create(final Class<? extends Container> swingClass)
-            throws IOException, InstantiationException, ClassNotFoundException, NoSuchFieldException, SAXException, InvocationTargetException {
+            throws IOException, InstantiationException, ClassNotFoundException, SAXException, InvocationTargetException {
 // todo: stuff to add to heavyweight component's XML attributes
 //        JFrame: graphicsConfiguration (c only)
 //        JWindow: owner (c only), graphicsConfiguration (c only)
@@ -220,13 +219,12 @@ public class SwingOutXml {
      * @param xmlNode the XML node to transform
      * @return the created JComponent, or null if nothing was created
      * @throws InstantiationException todo: audit these from createJComponent
-     * @throws NoSuchFieldException problem finding a field by name in setting up component attributes
      * @throws ClassNotFoundException
      * @throws SAXException
      * @throws IOException
      */
     private JComponent processNode(final Container parentContainer, final Node xmlNode)
-            throws InstantiationException, NoSuchFieldException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
+            throws InstantiationException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -262,12 +260,11 @@ public class SwingOutXml {
      * @throws InstantiationException todo: audit these
      * @throws ClassNotFoundException
      * @throws SAXException
-     * @throws NoSuchFieldException
      * @throws IOException
      */
     @SuppressWarnings("unchecked")
     private JComponent createJComponent(final Element xmlElement)
-            throws InstantiationException, ClassNotFoundException, SAXException, NoSuchFieldException, IOException, InvocationTargetException {
+            throws InstantiationException, ClassNotFoundException, SAXException, IOException, InvocationTargetException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class<? extends JComponent> componentClass, finalComponentClass;
@@ -456,9 +453,8 @@ public class SwingOutXml {
      * Binds (a) field(s) in the class being instantiated to a component created from an element in the XML
      * @param element the XML element that was used to instantiate the JComponent
      * @param component the component to set
-     * @throws NoSuchFieldException if the field specified in the XML DNE in the container
      */
-    private void setFields(final Element element, final JComponent component) throws NoSuchFieldException {
+    private void setFields(final Element element, final JComponent component) {
         final Set<Field> fields = findAssociatedFields(element);
         if (!fields.isEmpty()) {
             for (final Field field: fields) {
