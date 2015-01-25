@@ -25,6 +25,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.LayoutManager;
 import java.awt.Window;
 import java.awt.event.ActionListener;
@@ -50,7 +51,6 @@ import java.util.stream.Collectors;
 
 // todo:
 // consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
-// add some proper exception handling
 // put XML attributes somewhere else
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
@@ -78,8 +78,9 @@ public class SwingOutXml {
     private static final String A_CONSTRUCTOR_ARGS = "layout-constructor-args";
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
+    private static final String A_PREFERRED_SIZE = "preferred-size";
     // todo: attributes
-    // enabled, editable, preferred-size
+    // enabled, editable
 
     static {
         componentClasses.put("JButton", JButton.class);
@@ -144,6 +145,7 @@ public class SwingOutXml {
      * Creates an instance of the swingClass and lays out its UI according to the template file specified in the
      * {@link com.aaron.swingoutxml.annotation.SwingOutContainer} annotation. If swingClass implements
      * {@link PostSetup}, afterCreate is run as the last step.
+     * todo: make create(Component)
      * @param swingClass the class to instantiate
      * @throws IOException
      * @throws SAXException
@@ -313,9 +315,8 @@ public class SwingOutXml {
         }
         setTitle(xmlElement, jComponent);
         setLayout(xmlElement, jComponent);
-        if (leafTypeClasses.contains(finalComponentClass)) { // todo: add support for things that extend JLabel, JButton, etc
-            setText(xmlElement, jComponent);
-        }
+        setText(xmlElement, jComponent);
+        setPreferredSize(xmlElement, jComponent);
         return jComponent;
     }
 
@@ -325,10 +326,11 @@ public class SwingOutXml {
 
     /**
      * Sets the text of the component if applicable. The text comes from the TextNode child node of the element
+     * todo: add support for things that extend JLabel, JButton, etc
      * @param element the XML element containing text
      * @param jComponent the component on which to set text
      */
-    private static void setText(final Node element, final JComponent jComponent) {
+    private void setText(final Node element, final JComponent jComponent) {
         if (element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE) {
             if (jComponent.getClass() == JButton.class) {
                 ((JButton) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
@@ -381,6 +383,24 @@ public class SwingOutXml {
                 throw new IllegalArgumentException(String.format("Unable to instantiate layout %s", layout), ie);
             }
             container.setLayout(layoutManager);
+        }
+    }
+
+    /**
+     * Sets the preferred size of the container according to the attribute on the element
+     * @param element   the XML element that was used to instantiate the JComponent
+     * @param container container to set preferred size on
+     */
+    private void setPreferredSize(final Element element, final Container container) {
+        final String preferredSizeString = DomUtils.getAttribute(A_PREFERRED_SIZE, element);
+        if (preferredSizeString != null) {
+            final String[] dimensions = preferredSizeString.split("\\s*,\\s*");
+            if (dimensions.length != 2) {
+                throw new IllegalArgumentException(String.format("Error parsing %s attribute in element %s", A_PREFERRED_SIZE, element));
+            }
+            final int width = Integer.parseInt(dimensions[0]);
+            final int height = Integer.parseInt(dimensions[1]);
+            container.setPreferredSize(new Dimension(width, height));
         }
     }
 
