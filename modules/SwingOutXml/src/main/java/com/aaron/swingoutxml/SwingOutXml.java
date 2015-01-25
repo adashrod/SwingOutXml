@@ -24,6 +24,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
+import javax.swing.text.JTextComponent;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.LayoutManager;
@@ -80,8 +81,7 @@ public class SwingOutXml {
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
     private static final String A_PREFERRED_SIZE = "preferred-size";
-    // todo: attributes
-    // enabled, editable
+    private static final String A_EDITABLE = "editable";
 
     static {
         componentClasses.put("JButton", JButton.class);
@@ -319,6 +319,7 @@ public class SwingOutXml {
         setLayout(xmlElement, jComponent);
         setText(xmlElement, jComponent);
         setPreferredSize(xmlElement, jComponent);
+        setEditable(xmlElement, jComponent);
         return jComponent;
     }
 
@@ -415,6 +416,13 @@ public class SwingOutXml {
             final int width = Integer.parseInt(dimensions[0]);
             final int height = Integer.parseInt(dimensions[1]);
             container.setPreferredSize(new Dimension(width, height));
+        }
+    }
+
+    private void setEditable(final Element element, final Container container) {
+        final String editable = DomUtils.getAttribute(A_EDITABLE, element);
+        if (container instanceof JTextComponent && editable != null) {
+            ((JTextComponent) container).setEditable(Boolean.parseBoolean(editable));
         }
     }
 
