@@ -71,6 +71,7 @@ public class SwingOutXml {
 
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
+    private static final String A_ENABLED = "enabled";
     private static final String A_TITLE = "title";
     private static final String A_VISIBLE = "visible";
     private static final String A_LAYOUT = "layout";
@@ -313,6 +314,7 @@ public class SwingOutXml {
                 throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalComponentClass.getName(), xmlElement), ie);
             }
         }
+        setEnabled(xmlElement, jComponent);
         setTitle(xmlElement, jComponent);
         setLayout(xmlElement, jComponent);
         setText(xmlElement, jComponent);
@@ -322,6 +324,18 @@ public class SwingOutXml {
 
     private static void validateXml(final Element node) {
         // todo
+    }
+
+    /**
+     * Enables/disables the container according to the attribute on the element
+     * @param element the XML element containing text
+     * @param container the component to enable/disable
+     */
+    private void setEnabled(final Element element, final Container container) {
+        final String enabled = DomUtils.getAttribute(A_ENABLED, element);
+        if (enabled != null) {
+            container.setEnabled(Boolean.parseBoolean(enabled));
+        }
     }
 
     /**
