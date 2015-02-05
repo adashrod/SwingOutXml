@@ -80,7 +80,7 @@ public class LayoutBuilder {
         @SuppressWarnings("unchecked") final Class<? extends LayoutManager> layoutClass = rawClass;
         final List<Object> arguments = new ArrayList<>();
         final Class[] parameterTypes = parseArguments(packages, arguments, container, constructorArgList);
-        final Constructor layoutConstructor = layoutClass.getDeclaredConstructor(parameterTypes);
+        final Constructor layoutConstructor = ReflectionUtils.getDeclaredConstructor(layoutClass, parameterTypes);
         return (LayoutManager) layoutConstructor.newInstance(arguments.toArray());
     }
 }

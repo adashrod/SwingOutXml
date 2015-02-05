@@ -2,8 +2,11 @@ package com.aaron.swingoutxml.util;
 
 import javafx.util.Pair;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,6 +45,84 @@ public class ReflectionUtils {
         }
     }
 
+    /**
+     * Gets a field on a class, but unlike {@link java.lang.Class#getDeclaredField(String)}, this searches up the
+     * inheritance chain if the field isn't found on the base class. This searches up the chain until it's found or until
+     * it gets to {@link java.lang.Object} and fails. It also calls setAccessible(true) on the field.
+     * @param c    the class to find a field on
+     * @param name the name of the field to find
+     * @return the field, or null if not found
+     */
+    public static Field getDeclaredFieldHierarchical(final Class c, final String name) {
+        Class step = c;
+        while (step != null) {
+            try {
+                final Field field = step.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (final NoSuchFieldException nsfe) {
+                step = step.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tries to find a constructor on the class with a signature matching classes. While
+     * {@link java.lang.Class#getDeclaredConstructor(Class[])} will only return a constructor if the signature exactly
+     * matches the declared classes, this will attempt to find a constructor that would be invocable with the argument
+     * types in classes, even if one or more of the types is classes is a sub-type of the corresponding parameter in the
+     * constructor signature.
+     * E.g. a {@link javax.swing.BoxLayout} can be instantiated with a {@link javax.swing.JPanel}: new BoxLayout(jPanel, BoxLayout.X_AXIS),
+     * but calling BoxLayout.class.getDeclaredConstructor(JPanel.class, int.class) will throw a NoSuchMethodException.
+     * This is because the constructor signature is BoxLayout(Container target, int axis). Even though JPanel descends
+     * from Container, Class#getDeclaredConstructor doesn't check superclasses, so the only way to get the constructor
+     * would be to call BoxLayout.class.getDeclaredConstructor(Container.class, int.class).
+     * This function will find constructors if one or more of the supplied argument types is a subclass of the formal
+     * parameter type.
+     * @param c       the class to find a constructor on
+     * @param classes the name of the field to find
+     * @return the found constructor
+     * @throws NoSuchMethodException if the constructor couldn't be found, i.e. if there is no constructor that can be
+     * invoked with arguments of the supplied types, even accounting for superclasses
+     */
+    public static Constructor<?> getDeclaredConstructor(final Class<?> c, final Class<?>... classes) throws NoSuchMethodException {
+        final Class[] copy = Arrays.copyOf(classes, classes.length);
+        final Iterator<Class<?>[]> iterator = new Iterator<Class<?>[]>() {
+            private boolean firstIteration = true;
+            public boolean hasNext() {
+                if (firstIteration) {
+                    firstIteration = false;
+                    return true;
+                }
+                /* incrementing (changing from class to superclass) each index in the array like incrementing each digit
+                   in a number. copy[0] is least significant; copy[n - 1] is most
+                 */
+                copy[0] = copy[0].getSuperclass();
+                for (int i = 0; i < copy.length; i++) {
+                    if (copy[i] == null) {
+                        copy[i] = classes[i];
+                        if (i + 1 < copy.length) {
+                            copy[i + 1] = copy[i + 1].getSuperclass();
+                        } else {
+                            // the most significant class has cycled - we've iterated over all permutations
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            public Class<?>[] next() { return copy; }
+        };
+        while (iterator.hasNext()) {
+            try {
+                return c.getDeclaredConstructor(iterator.next());
+            } catch (final NoSuchMethodException ignored) {}
+        }
+        throw new NoSuchMethodException(String.format("Unable to find constructor for %s with parameter list %s",
+            c.getName(), Arrays.toString(classes)));
+    }
+
     private static Pair<Class<?>, Object> parseConstant(final String prefix, final String constantName) {
         final String wholeString = prefix.isEmpty() ? constantName : String.format("%s.%s", prefix, constantName);
         int pos = -1;
@@ -72,11 +153,8 @@ public class ReflectionUtils {
         } catch (final ClassNotFoundException e) {
             throw new IllegalArgumentException(String.format("Couldn't parse \"%s\"", wholeString));
         }
-        final Field field;
-        try {
-            field = c.getDeclaredField(wholeString.substring(lastDot + 1));
-            field.setAccessible(true);
-        } catch (final NoSuchFieldException e) {
+        final Field field = getDeclaredFieldHierarchical(c, wholeString.substring(lastDot + 1));
+        if (field == null) {
             throw new IllegalArgumentException(String.format("Couldn't parse \"%s\"", wholeString));
         }
         Object obj = null;
@@ -119,8 +197,9 @@ public class ReflectionUtils {
     }
 
     /**
-     * Parses a string, such as "top.width" where top is a member of context and width is a member of top. Currently only
-     * supports getting fields on context's class, not on any of its superclasses or superinterfaces.
+     * Parses a string, such as "top.width" or "this.top.width" where this is the context object, top is a member of
+     * context and width is a member of top. Supports getting members of any access level from the context object or any
+     * of its superclasses by climbing up the inheritance chain.
      * @param context    the context object
      * @param fieldToken a dot-delimited string of members
      * @return a pair containing the found field and its class. It's necessary to include them separately because if
@@ -132,16 +211,21 @@ public class ReflectionUtils {
         if (fieldToken == null || fieldToken.isEmpty()) {
             throw new IllegalArgumentException(String.format("Can't parse a null/empty field from %s", context));
         }
+        if ("this".equals(fieldToken)) {
+            return new Pair<>(context.getClass(), context);
+        }
         final String[] fields = fieldToken.split("\\s*\\.\\s*");
         Object obj = context;
         Field f = null;
-        for (final String field: fields) {
-            try {
-                f = obj.getClass().getDeclaredField(field);
-            } catch (final NoSuchFieldException nsfe) {
+        for (int i = 0; i < fields.length; i++) {
+            final String field = fields[i];
+            if ("this".equals(field) && i == 0) {
+                continue;
+            }
+            f = getDeclaredFieldHierarchical(obj.getClass(), field);
+            if (f == null) {
                 throw new IllegalArgumentException(String.format("Can't find field \"%s\" in object %s", field, obj));
             }
-            f.setAccessible(true);
             try {
                 obj = f.get(obj);
             } catch (final IllegalAccessException ignored) {}
