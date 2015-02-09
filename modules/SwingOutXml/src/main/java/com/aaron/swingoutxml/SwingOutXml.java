@@ -35,6 +35,7 @@ import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelListener;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -56,7 +57,7 @@ import java.util.stream.Collectors;
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
  * JFrame/JDialog/etc then using add(), layout is done in an XML template file. A class implements
- * \@{@link com.aaron.swingoutxml.annotation.SwingOutContainer} and {@link SwingOutXml#create(Class)} is
+ * \@{@link com.aaron.swingoutxml.annotation.SwingOutContainer} and {@link SwingOutXml#create(Class, Object...)} is
  * called with the class being instantiated.
  *
  * @see com.aaron.swingoutxml.annotation.SwingOutContainer
@@ -67,17 +68,22 @@ import java.util.stream.Collectors;
 public class SwingOutXml {
     private static final Map<String, Class<? extends JComponent>> componentClasses = new HashMap<>();
     private static final Collection<Class<? extends JComponent>> leafTypeClasses = new HashSet<>();
+    /**
+     * Map containing all of the containers and components created by SwingOutXml
+     */
+    private static final Map<String, Container> idMap = new HashMap<>();
 
     private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*")).stream().collect(Collectors.toList());
 
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
     private static final String A_ENABLED = "enabled";
+    private static final String A_CONSTRUCTOR_ARGS = "constructor-args";
     private static final String A_TITLE = "title";
     private static final String A_VISIBLE = "visible";
     private static final String A_LAYOUT = "layout";
     private static final String A_CONSTRAINTS = "constraints";
-    private static final String A_CONSTRUCTOR_ARGS = "layout-constructor-args";
+    private static final String A_LAYOUT_CONSTRUCTOR_ARGS = "layout-constructor-args";
     private static final String A_LISTENERS = "listeners";
     private static final String A_ACTION = "action";
     private static final String A_PREFERRED_SIZE = "preferred-size";
@@ -148,11 +154,13 @@ public class SwingOutXml {
      * {@link PostSetup}, afterCreate is run as the last step.
      * todo: make create(Component)
      * @param swingClass the class to instantiate
+     * @param paramConstructorArgs arguments to pass to the construction of swingClass. Arguments can also be passed in
+     *                             from XML. Anything in paramConstructorArgs overrides these.
      * @throws IOException
      * @throws SAXException
      * @throws InvocationTargetException
      */
-    public static Container create(final Class<? extends Container> swingClass)
+    public static Container create(final Class<? extends Container> swingClass, final Object... paramConstructorArgs)
             throws IOException, SAXException, InvocationTargetException {
 // todo: stuff to add to heavyweight component's XML attributes
 //        JFrame: graphicsConfiguration (c only)
@@ -169,8 +177,29 @@ public class SwingOutXml {
 
         // todo put in processNode?
         final Container topLevelContainer;
+        final List<String> constructorArgString = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, rootElement);
+        final Class<?>[] xmlConstructorClasses = new Class<?>[constructorArgString.size()];
+        final Object[] xmlConstructorArgs = new Object[constructorArgString.size()];
+        for (int i = 0; i < constructorArgString.size(); i++) {
+            final Pair<Class<?>, Object> p = ReflectionUtils.parseToken(null, null, idMap, awtPackages, constructorArgString.get(i));
+            xmlConstructorClasses[i] = p.getKey();
+            xmlConstructorArgs[i] = p.getValue();
+        }
+        final Class<?>[] paramConstructorClasses = new Class<?>[paramConstructorArgs.length];
+        Arrays.asList(paramConstructorArgs).stream().map(Object::getClass).collect(Collectors.toList()).toArray(paramConstructorClasses);
+        final Constructor<? extends Container> constructor;
         try {
-            topLevelContainer = swingClass.newInstance();
+            if (paramConstructorArgs.length > 0) {
+                constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(swingClass, paramConstructorClasses);
+                topLevelContainer = constructor.newInstance(paramConstructorArgs);
+            } else {
+                constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(swingClass, xmlConstructorClasses);
+                topLevelContainer = constructor.newInstance(xmlConstructorArgs);
+            }
+        } catch (final NoSuchMethodException nsme) {
+            throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
+                swingClass, paramConstructorArgs.length > 0 ? Arrays.toString(paramConstructorClasses) :
+                    Arrays.toString(xmlConstructorClasses)), nsme);
         } catch (final IllegalAccessException | InstantiationException e) {
             //  shouldn't be a problem, but will probably be refactored out when instantiation is dependent on XML root element
             throw new IllegalArgumentException(e);
@@ -202,11 +231,11 @@ public class SwingOutXml {
 
         if (topLevelContainer instanceof Window) {
             ((Window) topLevelContainer).pack();
-            final String visibleString = DomUtils.getAttribute(A_VISIBLE, rootElement);
-            if (visibleString != null) {
-                final boolean visible = Boolean.parseBoolean(visibleString);
-                topLevelContainer.setVisible(visible);
-            }
+        }
+        final String visibleString = DomUtils.getAttribute(A_VISIBLE, rootElement);
+        if (visibleString != null) {
+            final boolean visible = Boolean.parseBoolean(visibleString);
+            topLevelContainer.setVisible(visible);
         }
         if (topLevelContainer instanceof PostSetup) {
             ((PostSetup) topLevelContainer).afterCreate();
@@ -242,7 +271,8 @@ public class SwingOutXml {
         final String constraintsString = DomUtils.getAttribute(A_CONSTRAINTS, childElement);
         Object constraints = null;
         if (constraintsString != null) {
-            final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, awtPackages, constraintsString);
+            final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, idMap,
+                awtPackages, constraintsString);
             constraints = constraintsPair.getValue();
         }
         parentContainer.add(jComponent, constraints);
@@ -314,6 +344,14 @@ public class SwingOutXml {
                 throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalComponentClass.getName(), xmlElement), ie);
             }
         }
+        final String id = DomUtils.getAttribute(A_ID, xmlElement);
+        if (id != null) {
+            if (idMap.containsKey(id)) {
+                throw new IllegalArgumentException(String.format("XML ID \"%s\" duplicated. First usage for %s; duplicate: %s",
+                    id, idMap.get(id), xmlElement));
+            }
+            idMap.put(id, jComponent);
+        }
         setEnabled(xmlElement, jComponent);
         setTitle(xmlElement, jComponent);
         setLayout(xmlElement, jComponent);
@@ -372,7 +410,6 @@ public class SwingOutXml {
             // todo: add more context
             throw new IllegalArgumentException(String.format("The title attribute is not supported on %s elements", rootElement.getTagName()));
         }
-        // todo: finish this list
     }
 
     /**
@@ -384,16 +421,16 @@ public class SwingOutXml {
     private void setLayout(final Element element, final Container container) throws InvocationTargetException {
         final String layout = DomUtils.getAttribute(A_LAYOUT, element);
         if (layout != null) {
-            final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, element);
+            final List<String> layoutConstructorArgs = DomUtils.getAttributeAsList(A_LAYOUT_CONSTRUCTOR_ARGS, element);
             final LayoutManager layoutManager;
             try {
-                layoutManager = LayoutBuilder.buildLayout(awtPackages, layout, container, layoutConstructorArgs);
+                layoutManager = LayoutBuilder.buildLayout(awtPackages, idMap, layout, container, layoutConstructorArgs);
             } catch (final NoSuchMethodException nsme) {
                 throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
-                    layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), nsme);
+                    layout, DomUtils.getAttribute(A_LAYOUT_CONSTRUCTOR_ARGS, element)), nsme);
             } catch (final IllegalAccessException iae) {
                 throw new IllegalArgumentException(String.format("Constructor for %s with the signature: %s is not public",
-                    layout, DomUtils.getAttribute(A_CONSTRUCTOR_ARGS, element)), iae);
+                    layout, DomUtils.getAttribute(A_LAYOUT_CONSTRUCTOR_ARGS, element)), iae);
             } catch (final InstantiationException ie) {
                 throw new IllegalArgumentException(String.format("Unable to instantiate layout %s", layout), ie);
             }

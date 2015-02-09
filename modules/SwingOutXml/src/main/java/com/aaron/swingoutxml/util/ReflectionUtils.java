@@ -2,10 +2,12 @@ package com.aaron.swingoutxml.util;
 
 import javafx.util.Pair;
 
+import java.awt.Container;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -16,7 +18,31 @@ import java.util.regex.Pattern;
  */
 public class ReflectionUtils {
     private static final Pattern stringArgPattern = Pattern.compile("(?:'([^']*)'|\"([^\"]*)\")");
-    private static final Pattern keywordPattern = Pattern.compile("(\\{[^}]*\\})");
+    private static final Pattern keywordPattern = Pattern.compile("(\\{[^}:]*\\})");
+    private static final Pattern idPattern = Pattern.compile("^\\s*\\{id:([^}:]*)\\}\\s*$");
+
+    private static final Map<Class<?>, Class<?>> primitiveMap = new HashMap<>();
+    private static final Map<Class<?>, Class<?>> primitiveInverseMap = new HashMap<>();
+
+    static {
+        primitiveMap.put(Boolean.class, boolean.class);
+        primitiveMap.put(Character.class, char.class);
+        primitiveMap.put(Byte.class, byte.class);
+        primitiveMap.put(Short.class, short.class);
+        primitiveMap.put(Integer.class, int.class);
+        primitiveMap.put(Long.class, long.class);
+        primitiveMap.put(Float.class, float.class);
+        primitiveMap.put(Double.class, double.class);
+
+        primitiveInverseMap.put(boolean.class, Boolean.class);
+        primitiveInverseMap.put(char.class, Character.class);
+        primitiveInverseMap.put(byte.class, Byte.class);
+        primitiveInverseMap.put(short.class, Short.class);
+        primitiveInverseMap.put(int.class, Integer.class);
+        primitiveInverseMap.put(long.class, Long.class);
+        primitiveInverseMap.put(float.class, Float.class);
+        primitiveInverseMap.put(double.class, Double.class);
+    }
 
     /**
      * Attempts to get a Class by its name. This is just a wrapper for {@link Class#forName(String)}, except that it also
@@ -71,7 +97,7 @@ public class ReflectionUtils {
      * Tries to find a constructor on the class with a signature matching classes. While
      * {@link java.lang.Class#getDeclaredConstructor(Class[])} will only return a constructor if the signature exactly
      * matches the declared classes, this will attempt to find a constructor that would be invocable with the argument
-     * types in classes, even if one or more of the types is classes is a sub-type of the corresponding parameter in the
+     * types in classes, even if one or more of the types of classes is a sub-type of the corresponding parameter in the
      * constructor signature.
      * E.g. a {@link javax.swing.BoxLayout} can be instantiated with a {@link javax.swing.JPanel}: new BoxLayout(jPanel, BoxLayout.X_AXIS),
      * but calling BoxLayout.class.getDeclaredConstructor(JPanel.class, int.class) will throw a NoSuchMethodException.
@@ -86,10 +112,29 @@ public class ReflectionUtils {
      * @throws NoSuchMethodException if the constructor couldn't be found, i.e. if there is no constructor that can be
      * invoked with arguments of the supplied types, even accounting for superclasses
      */
-    public static Constructor<?> getDeclaredConstructor(final Class<?> c, final Class<?>... classes) throws NoSuchMethodException {
+    public static <T> Constructor<T> getDeclaredConstructorPolymorphic(final Class<T> c, final Class<?>... classes)
+            throws NoSuchMethodException {
         final Class[] copy = Arrays.copyOf(classes, classes.length);
         final Iterator<Class<?>[]> iterator = new Iterator<Class<?>[]>() {
             private boolean firstIteration = true;
+            /**
+             * Returns the superclass of klass with special behavior for primitives and primitive wrappers. In the case
+             * where a primitive is auto-boxed to its wrapper class, this iterator would for example go Integer ->
+             * Number -> Object -> null, when it should have gone int -> null. This function changes that path to be
+             * Integer -> int -> Number -> Object -> null so that construction signatures with primitive formal types
+             * will not be missed.
+             * @param klass a class to get a superclass of
+             * @return the superclass, corresponding primitive, or corresponding wrapper's superclass
+             */
+            private Class<?> getNextClass(final Class<?> klass) {
+                if (primitiveMap.keySet().contains(klass)) {
+                    return primitiveMap.get(klass);
+                } else if (primitiveMap.values().contains(klass)) {
+                    return primitiveInverseMap.get(klass).getSuperclass();
+                } else {
+                    return klass.getSuperclass();
+                }
+            }
             public boolean hasNext() {
                 if (firstIteration) {
                     firstIteration = false;
@@ -98,12 +143,15 @@ public class ReflectionUtils {
                 /* incrementing (changing from class to superclass) each index in the array like incrementing each digit
                    in a number. copy[0] is least significant; copy[n - 1] is most
                  */
-                copy[0] = copy[0].getSuperclass();
+                if (copy.length == 0) {
+                    return false;
+                }
+                copy[0] = getNextClass(copy[0]);
                 for (int i = 0; i < copy.length; i++) {
                     if (copy[i] == null) {
                         copy[i] = classes[i];
                         if (i + 1 < copy.length) {
-                            copy[i + 1] = copy[i + 1].getSuperclass();
+                            copy[i + 1] = getNextClass(copy[i + 1]);
                         } else {
                             // the most significant class has cycled - we've iterated over all permutations
                             return false;
@@ -173,7 +221,7 @@ public class ReflectionUtils {
      *         the primitive class
      * @throws IllegalArgumentException if the class couldn't be found
      */
-    public static Pair<Class<?>, Object> parseConstant(final Collection<String> potentialPrefixes, final String constantName) {
+    private static Pair<Class<?>, Object> parseConstant(final Collection<String> potentialPrefixes, final String constantName) {
         Pair<Class<?>, Object> result = null;
         if (constantName != null) {
             try {
@@ -207,7 +255,7 @@ public class ReflectionUtils {
      *         the primitive class
      * @throws IllegalArgumentException if any of the fields couldn't be found
      */
-    public static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) {
+    private static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) {
         if (fieldToken == null || fieldToken.isEmpty()) {
             throw new IllegalArgumentException(String.format("Can't parse a null/empty field from %s", context));
         }
@@ -247,7 +295,7 @@ public class ReflectionUtils {
      * @throws IllegalArgumentException if the token couldn't be parsed
      */
     public static Pair<Class<?>, Object> parseToken(final Object context, final Map<String, Object> keywordMap,
-            final Collection<String> potentialPrefixes, final String token) {
+            final Map<String, Container> idMap, final Collection<String> potentialPrefixes, final String token) {
         final Matcher stringMatcher = stringArgPattern.matcher(token);
         if (stringMatcher.matches()) {
             final String s = stringMatcher.group(1) != null ? stringMatcher.group(1) : stringMatcher.group(2);
@@ -265,14 +313,21 @@ public class ReflectionUtils {
                 final Object o = keywordMap.get(keyword);
                 return new Pair<>(o.getClass(), o);
             } else {
-                try {
-                    final int i = Integer.parseInt(token);
-                    return new Pair<>(int.class, i);
-                } catch (final NumberFormatException nfe) {
+                final Matcher idMatcher = idPattern.matcher(token);
+                if (idMatcher.matches()) {
+                    final String id = idMatcher.group(1);
+                    final Container c = idMap.get(id);
+                    return new Pair<>(c.getClass(), c);
+                } else {
                     try {
-                        return parseConstant(potentialPrefixes, token);
-                    } catch (final IllegalArgumentException iae) {
-                        return parseField(context, token);
+                        final int i = Integer.parseInt(token);
+                        return new Pair<>(int.class, i);
+                    } catch (final NumberFormatException nfe) {
+                        try {
+                            return parseConstant(potentialPrefixes, token);
+                        } catch (final IllegalArgumentException iae) {
+                            return parseField(context, token);
+                        }
                     }
                 }
             }
