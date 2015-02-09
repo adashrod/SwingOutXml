@@ -1,6 +1,9 @@
 package com.aaron.swingoutxml.util;
 
+import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,6 +16,8 @@ import java.util.stream.Collectors;
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 public class DomUtils {
+    private static final String toStringIndent = "    ";
+
     /**
      * Gets an attribute on an element. Returns null if the attribute is missing or whitespace only
      * @param attribute name of the attribute to get
@@ -22,6 +27,40 @@ public class DomUtils {
     public static String getAttribute(final String attribute, final Element node) {
         final String value = node.getAttribute(attribute).trim();
         return !value.isEmpty() ? value : null;
+    }
+
+    /**
+     * Gets an attribute on an element. Returns null if the attribute is missing or whitespace only
+     * @param attribute name of the attribute to get
+     * @param node      element to get an attribute on
+     * @param type      a return type to cast the attribute value to (Boolean|Short|Integer|Long|Float|Double|String)
+     * @return attribute value, or null if the attribute was missing or whitespace only
+     */
+    public static <T> T getAttribute(final String attribute, final Element node, final Class<T> type) {
+        if (type.isPrimitive()) {
+            throw new IllegalArgumentException(String.format("Can't use primitive types in getAttribute() since missing attribute values are null: %s", type));
+        }
+        final String value = getAttribute(attribute, node);
+        if (value == null) {
+            return null;
+        }
+        if (type == Boolean.class) {
+            return type.cast(Boolean.parseBoolean(value));
+        } else if (type == Short.class) {
+            return type.cast(Short.parseShort(value));
+        } else if (type == Integer.class) {
+            return type.cast(Integer.parseInt(value));
+        } else if (type == Long.class) {
+            return type.cast(Long.parseLong(value));
+        } else if (type == Float.class) {
+            return type.cast(Float.parseFloat(value));
+        } else if (type == Double.class) {
+            return type.cast(Double.parseDouble(value));
+        } else if (type == String.class) {
+            return type.cast(value);
+        } else {
+            throw new IllegalArgumentException(String.format("Invalid type for getAttribute(): %s", type));
+        }
     }
 
     /**
@@ -40,5 +79,43 @@ public class DomUtils {
         } else {
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * Pretty, recursive indentation helper for {@link com.aaron.swingoutxml.util.DomUtils#toString(org.w3c.dom.Element)}
+     * @param element an element to stringify
+     * @param indent  level of tab indentation for level of element depth
+     * @return an XML-like representation of the XML element
+     */
+    private static String toString(final Element element, final String indent) {
+        final NamedNodeMap namedNodeMap = element.getAttributes();
+        final StringBuilder result = new StringBuilder();
+        result.append(indent).append("<").append(element.getTagName());
+        for (int i = 0; i < namedNodeMap.getLength(); i++) {
+            final Attr attribute = (Attr) namedNodeMap.item(i);
+            result.append(" ").append(attribute.getName()).append("=\"").append(attribute.getValue()).append("\"");
+        }
+        if (element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE) {
+            result.append(">").append(element.getChildNodes().item(0).getNodeValue()).append("</").append(element.getTagName()).append(">");
+        } else {
+            result.append(">\n");
+            for (int i = 0; i < element.getChildNodes().getLength(); i++) {
+                final Node child = element.getChildNodes().item(i);
+                if (child.getNodeType() != Node.ELEMENT_NODE) {
+                    continue;
+                }
+                result.append(toString((Element) child, indent + toStringIndent)).append("\n");
+            }
+            result.append(indent).append("</").append(element.getTagName()).append(">");
+        }
+        return result.toString();
+    }
+
+    /**
+     * @param element an element to stringify
+     * @return an XML-like representation of the XML element
+     */
+    public static String toString(final Element element) {
+        return toString(element, "");
     }
 }

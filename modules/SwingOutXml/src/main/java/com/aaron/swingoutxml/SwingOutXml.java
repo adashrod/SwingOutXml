@@ -232,9 +232,8 @@ public class SwingOutXml {
         if (topLevelContainer instanceof Window) {
             ((Window) topLevelContainer).pack();
         }
-        final String visibleString = DomUtils.getAttribute(A_VISIBLE, rootElement);
-        if (visibleString != null) {
-            final boolean visible = Boolean.parseBoolean(visibleString);
+        final Boolean visible = DomUtils.getAttribute(A_VISIBLE, rootElement, Boolean.class);
+        if (visible != null) {
             topLevelContainer.setVisible(visible);
         }
         if (topLevelContainer instanceof PostSetup) {
@@ -304,7 +303,7 @@ public class SwingOutXml {
             try {
                 customClass = Class.forName(className);
             } catch (final ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException(String.format("Unable to find class %s from XML: %s", className, xmlElement), cnfe);
+                throw new IllegalArgumentException(String.format("Unable to find class %s from XML: %s", className, DomUtils.toString(xmlElement)), cnfe);
             }
             if (!JComponent.class.isAssignableFrom(customClass)) {
                 throw new IllegalArgumentException("custom element doesn't extend JComponent");
@@ -315,7 +314,7 @@ public class SwingOutXml {
         if (componentClass == JComponent.class) {
             final Set<Field> fields = findAssociatedFields(xmlElement);
             if (fields.isEmpty()) {
-                throw new IllegalArgumentException(String.format("when using JComponent in the XML, you must provide a field name of a member that is a concrete class, or annotate a field and include the ID of the element in the XML.: %s", xmlElement));
+                throw new IllegalArgumentException(String.format("when using JComponent in the XML, you must provide a field name of a member that is a concrete class, or annotate a field and include the ID of the element in the XML.: %s", DomUtils.toString(xmlElement)));
             }
             final Class concreteComponentClass = fields.iterator().next().getType();
             if (!componentClass.isAssignableFrom(concreteComponentClass)) {
@@ -325,7 +324,7 @@ public class SwingOutXml {
             }
             for (final Field field: fields) {
                 if (!field.getType().equals(concreteComponentClass)) {
-                    throw new IllegalArgumentException(String.format("when using JComponent in the XML, all bound fields must be of the same type: %s", xmlElement));
+                    throw new IllegalArgumentException(String.format("when using JComponent in the XML, all bound fields must be of the same type: %s", DomUtils.toString(xmlElement)));
                 }
             }
             finalComponentClass = concreteComponentClass;
@@ -341,14 +340,14 @@ public class SwingOutXml {
             } catch (final IllegalAccessException iae) {
                 throw new IllegalArgumentException(String.format("Default constructor for %s is not public", finalComponentClass.getName()), iae);
             } catch (final InstantiationException ie) {
-                throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalComponentClass.getName(), xmlElement), ie);
+                throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalComponentClass.getName(), DomUtils.toString(xmlElement)), ie);
             }
         }
         final String id = DomUtils.getAttribute(A_ID, xmlElement);
         if (id != null) {
             if (idMap.containsKey(id)) {
                 throw new IllegalArgumentException(String.format("XML ID \"%s\" duplicated. First usage for %s; duplicate: %s",
-                    id, idMap.get(id), xmlElement));
+                    id, idMap.get(id), DomUtils.toString(xmlElement)));
             }
             idMap.put(id, jComponent);
         }
@@ -371,9 +370,9 @@ public class SwingOutXml {
      * @param container the component to enable/disable
      */
     private void setEnabled(final Element element, final Container container) {
-        final String enabled = DomUtils.getAttribute(A_ENABLED, element);
+        final Boolean enabled = DomUtils.getAttribute(A_ENABLED, element, Boolean.class);
         if (enabled != null) {
-            container.setEnabled(Boolean.parseBoolean(enabled));
+            container.setEnabled(enabled);
         }
     }
 
@@ -448,7 +447,7 @@ public class SwingOutXml {
         if (preferredSizeString != null) {
             final String[] dimensions = preferredSizeString.split("\\s*,\\s*");
             if (dimensions.length != 2) {
-                throw new IllegalArgumentException(String.format("Error parsing %s attribute in element %s", A_PREFERRED_SIZE, element));
+                throw new IllegalArgumentException(String.format("Error parsing %s attribute in element %s", A_PREFERRED_SIZE, DomUtils.toString(element)));
             }
             final int width = Integer.parseInt(dimensions[0]);
             final int height = Integer.parseInt(dimensions[1]);
@@ -457,9 +456,9 @@ public class SwingOutXml {
     }
 
     private void setEditable(final Element element, final Container container) {
-        final String editable = DomUtils.getAttribute(A_EDITABLE, element);
+        final Boolean editable = DomUtils.getAttribute(A_EDITABLE, element, Boolean.class);
         if (container instanceof JTextComponent && editable != null) {
-            ((JTextComponent) container).setEditable(Boolean.parseBoolean(editable));
+            ((JTextComponent) container).setEditable(editable);
         }
     }
 
