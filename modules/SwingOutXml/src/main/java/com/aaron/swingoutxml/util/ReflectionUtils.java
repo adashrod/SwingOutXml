@@ -5,6 +5,7 @@ import javafx.util.Pair;
 import java.awt.Container;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -254,10 +255,11 @@ public class ReflectionUtils {
      *         the constant is a primitive, then result.getValue().getClass() would be the primitive wrapper class, not
      *         the primitive class
      * @throws IllegalArgumentException if any of the fields couldn't be found
+     * @throws ParseException if any of the fields couldn't be found
      */
-    private static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) {
+    private static Pair<Class<?>, Object> parseField(final Object context, final String fieldToken) throws ParseException {
         if (fieldToken == null || fieldToken.isEmpty()) {
-            throw new IllegalArgumentException(String.format("Can't parse a null/empty field from %s", context));
+            throw new ParseException(String.format("Can't parse a null/empty field from %s", context), 0);
         }
         if ("this".equals(fieldToken)) {
             return new Pair<>(context.getClass(), context);
@@ -272,7 +274,7 @@ public class ReflectionUtils {
             }
             f = getDeclaredFieldHierarchical(obj.getClass(), field);
             if (f == null) {
-                throw new IllegalArgumentException(String.format("Can't find field \"%s\" in object %s", field, obj));
+                throw new ParseException(String.format("Can't find field \"%s\" in object %s", field, obj), 0);
             }
             try {
                 obj = f.get(obj);
@@ -295,7 +297,7 @@ public class ReflectionUtils {
      * @throws IllegalArgumentException if the token couldn't be parsed
      */
     public static Pair<Class<?>, Object> parseToken(final Object context, final Map<String, Object> keywordMap,
-            final Map<String, Container> idMap, final Collection<String> potentialPrefixes, final String token) {
+            final Map<String, Container> idMap, final Collection<String> potentialPrefixes, final String token) throws ParseException {
         final Matcher stringMatcher = stringArgPattern.matcher(token);
         if (stringMatcher.matches()) {
             final String s = stringMatcher.group(1) != null ? stringMatcher.group(1) : stringMatcher.group(2);
@@ -305,10 +307,10 @@ public class ReflectionUtils {
             if (keywordMatcher.matches()) {
                 final String keyword = keywordMatcher.group(1);
                 if (keywordMap == null) {
-                    throw new IllegalArgumentException(String.format("Unable to get keyword \"%s\" from null map", keyword));
+                    throw new ParseException(String.format("Unable to get keyword \"%s\" from null map", keyword), 0);
                 }
                 if (!keywordMap.containsKey(keyword)) {
-                    throw new IllegalArgumentException(String.format("Keyword \"%s\" was missing in map %s", keyword, keywordMap));
+                    throw new ParseException(String.format("Couldn't find keyword \"%s\" in map %s", keyword, keywordMap), 0);
                 }
                 final Object o = keywordMap.get(keyword);
                 return new Pair<>(o.getClass(), o);
@@ -317,6 +319,9 @@ public class ReflectionUtils {
                 if (idMatcher.matches()) {
                     final String id = idMatcher.group(1);
                     final Container c = idMap.get(id);
+                    if (c == null) {
+                        throw new ParseException(String.format("Couldn't find object with ID: %s", id), 0);
+                    }
                     return new Pair<>(c.getClass(), c);
                 } else {
                     try {

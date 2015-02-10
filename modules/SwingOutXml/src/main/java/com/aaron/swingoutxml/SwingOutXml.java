@@ -38,6 +38,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -181,7 +182,12 @@ public class SwingOutXml {
         final Class<?>[] xmlConstructorClasses = new Class<?>[constructorArgString.size()];
         final Object[] xmlConstructorArgs = new Object[constructorArgString.size()];
         for (int i = 0; i < constructorArgString.size(); i++) {
-            final Pair<Class<?>, Object> p = ReflectionUtils.parseToken(null, null, idMap, awtPackages, constructorArgString.get(i));
+            final Pair<Class<?>, Object> p;
+            try {
+                p = ReflectionUtils.parseToken(null, null, idMap, awtPackages, constructorArgString.get(i));
+            } catch (final ParseException pe) {
+                throw new IllegalArgumentException(String.format("%s in element %s", pe.getMessage(), DomUtils.toString(rootElement)));
+            }
             xmlConstructorClasses[i] = p.getKey();
             xmlConstructorArgs[i] = p.getValue();
         }
@@ -278,8 +284,12 @@ public class SwingOutXml {
         final String constraintsString = DomUtils.getAttribute(A_CONSTRAINTS, childElement);
         Object constraints = null;
         if (constraintsString != null) {
-            final Pair<Class<?>, Object> constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, idMap,
-                awtPackages, constraintsString);
+            final Pair<Class<?>, Object> constraintsPair;
+            try {
+                constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, idMap, awtPackages, constraintsString);
+            } catch (final ParseException pe) {
+                throw new IllegalArgumentException(String.format("%s in element %s", pe.getMessage(), DomUtils.toString(childElement)));
+            }
             constraints = constraintsPair.getValue();
         }
         parentContainer.add(jComponent, constraints);
@@ -440,6 +450,8 @@ public class SwingOutXml {
                     layout, DomUtils.getAttribute(A_LAYOUT_CONSTRUCTOR_ARGS, element)), iae);
             } catch (final InstantiationException ie) {
                 throw new IllegalArgumentException(String.format("Unable to instantiate layout %s", layout), ie);
+            } catch (final ParseException pe) {
+                throw new IllegalArgumentException(String.format("%s in element %s", pe.getMessage(), DomUtils.toString(element)));
             }
             container.setLayout(layoutManager);
         }

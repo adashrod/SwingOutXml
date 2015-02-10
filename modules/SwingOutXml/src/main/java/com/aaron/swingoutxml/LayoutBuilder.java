@@ -11,6 +11,7 @@ import java.awt.Container;
 import java.awt.LayoutManager;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,7 +26,7 @@ public class LayoutBuilder {
     public static final String CONTENT_PANE_TOKEN = "{contentPane}";
 
     private static Class[] parseArguments(final Collection<String> packages, final Map<String, Container> idMap,
-            final Collection<Object> arguments, final Container container, final List<String> constructorArgList) {
+            final Collection<Object> arguments, final Container container, final List<String> constructorArgList) throws ParseException {
         final List<Class<?>> argTypes = new ArrayList<>();
         if (constructorArgList != null) {
             final Map<String, Object> keywordMap = new HashMap<>();
@@ -75,7 +76,7 @@ public class LayoutBuilder {
      */
     public static LayoutManager buildLayout(final Collection<String> packages, final Map<String, Container> idMap,
             final String layoutName, final Container context, final List<String> constructorArgList)
-            throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
+            throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException, ParseException {
         final Class rawClass = ReflectionUtils.classForName(packages, layoutName);
         if (!LayoutManager.class.isAssignableFrom(rawClass)) {
             throw new IllegalArgumentException(String.format("%s does not extend LayoutManager", layoutName));
