@@ -160,7 +160,7 @@ public class SwingOutXml {
      * @throws SAXException
      * @throws InvocationTargetException
      */
-    public static Container create(final Class<? extends Container> swingClass, final Object... paramConstructorArgs)
+    public static <T extends Container> T create(final Class<T> swingClass, final Object... paramConstructorArgs)
             throws IOException, SAXException, InvocationTargetException {
 // todo: stuff to add to heavyweight component's XML attributes
 //        JFrame: graphicsConfiguration (c only)
@@ -195,6 +195,14 @@ public class SwingOutXml {
             } else {
                 constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(swingClass, xmlConstructorClasses);
                 topLevelContainer = constructor.newInstance(xmlConstructorArgs);
+            }
+            final String id = DomUtils.getAttribute(A_ID, rootElement);
+            if (id != null) {
+                if (idMap.containsKey(id)) {
+                    throw new IllegalArgumentException(String.format("XML ID \"%s\" duplicated. First usage for %s; duplicate: %s",
+                        id, idMap.get(id), DomUtils.toString(rootElement)));
+                }
+                idMap.put(id, topLevelContainer);
             }
         } catch (final NoSuchMethodException nsme) {
             throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
@@ -239,7 +247,7 @@ public class SwingOutXml {
         if (topLevelContainer instanceof PostSetup) {
             ((PostSetup) topLevelContainer).afterCreate();
         }
-        return topLevelContainer;
+        return swingClass.cast(topLevelContainer);
     }
 
     /**
@@ -333,7 +341,7 @@ public class SwingOutXml {
         }
         final SwingOutContainer swingOutContainer = finalComponentClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer != null) {
-            jComponent = (JComponent) SwingOutXml.create(finalComponentClass);
+            jComponent = SwingOutXml.create(finalComponentClass);
         } else {
             try {
                 jComponent = finalComponentClass.newInstance();
