@@ -18,18 +18,28 @@ import org.xml.sax.SAXException;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.event.TreeExpansionListener;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.text.JTextComponent;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.LayoutManager;
 import java.awt.Window;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelListener;
@@ -74,7 +84,7 @@ public class SwingOutXml {
      */
     private static final Map<String, Container> idMap = new HashMap<>();
 
-    private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*")).stream().collect(Collectors.toList());
+    private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*"));//.stream().collect(Collectors.toList());
 
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
@@ -89,13 +99,24 @@ public class SwingOutXml {
     private static final String A_ACTION = "action";
     private static final String A_PREFERRED_SIZE = "preferred-size";
     private static final String A_EDITABLE = "editable";
+    private static final String A_ADD = "add";
+    // button-group
+    // selection-mode
+    // layout-orientation
+    // cell-renderer
+    // tool-tip-text
 
     static {
         componentClasses.put("JButton", JButton.class);
+        componentClasses.put("JCheckBox", JCheckBox.class);
         componentClasses.put("JComponent", JComponent.class);
         componentClasses.put("JLabel", JLabel.class);
+        componentClasses.put("JList", JList.class);
         componentClasses.put("JPanel", JPanel.class);
+        componentClasses.put("JRadioButton", JRadioButton.class);
+        componentClasses.put("JScrollPane", JScrollPane.class);
         componentClasses.put("JTextArea", JTextArea.class);
+        componentClasses.put("JTextField", JTextField.class);
 
         leafTypeClasses.add(JButton.class);
         leafTypeClasses.add(JLabel.class);
@@ -292,7 +313,10 @@ public class SwingOutXml {
             }
             constraints = constraintsPair.getValue();
         }
-        parentContainer.add(jComponent, constraints);
+        final Boolean add = DomUtils.getAttribute(A_ADD, childElement, Boolean.class);
+        if (add == null || add) {
+            parentContainer.add(jComponent, constraints);
+        }
         setFields(childElement, jComponent);
         addListeners(childElement, jComponent);
         setAction(childElement, jComponent);
@@ -351,6 +375,7 @@ public class SwingOutXml {
         }
         final SwingOutContainer swingOutContainer = finalComponentClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer != null) {
+            // todo: pass constructor-args param to create
             jComponent = SwingOutXml.create(finalComponentClass);
         } else {
             try {
@@ -402,8 +427,8 @@ public class SwingOutXml {
      */
     private void setText(final Node element, final JComponent jComponent) {
         if (element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE) {
-            if (jComponent.getClass() == JButton.class) {
-                ((JButton) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
+            if (jComponent instanceof AbstractButton) {
+                ((AbstractButton) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
             } else if (jComponent.getClass() == JLabel.class) {
                 ((JLabel) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
             }
@@ -489,6 +514,7 @@ public class SwingOutXml {
      * @param attribute         which attribute to look at (field, listeners, action)
      * @return a Set of Fields that match the element, or a singleton set if allowMultiple is true and a match is found
      */
+    // todo make this return set of pair<method, field>
     private Set<Field> findAssociatedFields(final Element element, final Class<? extends Annotation> annotationType,
             final String attribute) {
         final Set<Field> result = new HashSet<>();
@@ -525,6 +551,7 @@ public class SwingOutXml {
      * @return the found fields
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
+    // todo make this map set of pair<method, field> to current return
     private Set<Field> findAssociatedFields(final Element element) {
         return findAssociatedFields(element, UiComponent.class, A_FIELD);
     }
@@ -535,6 +562,7 @@ public class SwingOutXml {
      * @return the found fields
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
+    // todo make this return set of pair<method, field>
     private Set<Field> findAssociatedListeners(final Element element) {
         return findAssociatedFields(element, Listener.class, A_LISTENERS);
     }
@@ -545,6 +573,7 @@ public class SwingOutXml {
      * @return the found field
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
+    // todo make this map set of pair<method, field> to current return
     private Field findAssociatedAction(final Element element) {
         final Set<Field> fields = findAssociatedFields(element, ComponentAction.class, A_ACTION);
         return !fields.isEmpty() ? fields.iterator().next() : null;
@@ -571,6 +600,7 @@ public class SwingOutXml {
      * Adds all specified ActionListeners to the button.
      * @param xmlElement XML element describing the button being modified
      * @param component the component to add ActionListeners to
+     * todo: throw different exceptions when ClassCastException happens for better error messages
      */
     private void addListeners(final Element xmlElement, final JComponent component) {
         final Set<Field> listenerFields = findAssociatedListeners(xmlElement);
@@ -585,15 +615,20 @@ public class SwingOutXml {
                 // impossible
                 continue;
             }
-            // todo: use getClass instead since instanceof behaves weirdly with some of these
+            boolean added = false;
+            // todo: use getClass or isAssignableFrom instead since instanceof behaves weirdly with some of these Mouse ones
+            System.out.println(listener);
             if (listener instanceof MouseListener) {
                 component.addMouseListener((MouseListener) listener);
+                added = true;
             }
             if (listener instanceof MouseMotionListener) {
                 component.addMouseMotionListener((MouseMotionListener) listener);
+                added = true;
             }
             if (listener instanceof MouseWheelListener) {
                 component.addMouseWheelListener((MouseWheelListener) listener);
+                added = true;
             }
             if (listener instanceof ActionListener) {
                 try {
@@ -602,6 +637,42 @@ public class SwingOutXml {
                     throw new IllegalArgumentException(String.format("%s is not an AbstractButton and therefore cannot accept the ActionListener %s",
                         component, field));
                 }
+                added = true;
+            }
+            if (listener instanceof KeyListener) {
+                component.addKeyListener((KeyListener) listener);
+                added = true;
+            }
+            if (listener.getClass() == TreeWillExpandListener.class) {
+                try {
+                    ((JTree) component).addTreeWillExpandListener((TreeWillExpandListener) listener);
+                } catch (final ClassCastException cce) {
+                    throw new IllegalArgumentException(String.format("%s is not a JTree and therefore cannot accept the TreeWillExpandListener %s",
+                        component, field));
+                }
+                added = true;
+            }
+            if (listener instanceof TreeExpansionListener) {
+                try {
+                    ((JTree) component).addTreeExpansionListener((TreeExpansionListener) listener);
+                } catch (final ClassCastException cce) {
+                    throw new IllegalArgumentException(String.format("%s is not a JTree and therefore cannot accept the TreeExpansionListener %s",
+                        component, field));
+                }
+                added = true;
+            }
+            if (listener instanceof ListSelectionListener) {
+                try {
+                    ((JList) component).addListSelectionListener((ListSelectionListener) listener);
+                } catch (final ClassCastException cce) {
+                    throw new IllegalArgumentException(String.format("%s is not a JList and therefore cannot accept the ListSelectionListener %s",
+                        component, field));
+                }
+                added = true;
+            }
+            if (!added) {
+                //todo logger
+                System.out.println(String.format("Couldn't add listener %s from element %s", listener, DomUtils.toString(xmlElement)));
             }
         }
     }
