@@ -48,6 +48,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,6 +61,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 // todo:
@@ -84,7 +87,9 @@ public class SwingOutXml {
      */
     private static final Map<String, Container> idMap = new HashMap<>();
 
-    private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*"));//.stream().collect(Collectors.toList());
+    private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*"));
+
+    private final Pattern monadicFunctionCallPattern = Pattern.compile("^\\s*([^()]+)\\s*\\(\\s*([^()]+)\\s*\\)\\s*$");
 
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
@@ -127,11 +132,11 @@ public class SwingOutXml {
     /**
      * map of annotation type to which map should be queried for that annotation type to find ID associations
      */
-    private final Map<Class<? extends Annotation>, Map<String, Collection<Field>>> mapMap = new HashMap<>();
+    private final Map<Class<? extends Annotation>, Map<String, Collection<Pair<String, Field>>>> mapMap = new HashMap<>();
 
     private SwingOutXml(final Container topLevelContainer) {
         this.topLevelContainer = topLevelContainer;
-        final Map<String, Collection<Field>> idUiComponentMap = new HashMap<>(),
+        final Map<String, Collection<Pair<String, Field>>> idUiComponentMap = new HashMap<>(),
             idListenerMap = new HashMap<>(),
             idComponentActionMap = new HashMap<>();
         for (final Field field: topLevelContainer.getClass().getDeclaredFields()) {
@@ -141,7 +146,7 @@ public class SwingOutXml {
                 for (final String id: uiComponent.value()) {
                     final String trimmedId = id.trim();
                     idUiComponentMap.putIfAbsent(trimmedId, new HashSet<>());
-                    idUiComponentMap.get(trimmedId).add(field);
+                    idUiComponentMap.get(trimmedId).add(new Pair<>("", field));
                 }
             }
             final Listener listener = field.getDeclaredAnnotation(Listener.class);
@@ -149,7 +154,7 @@ public class SwingOutXml {
                 for (final String id: listener.value()) {
                     final String trimmedId = id.trim();
                     idListenerMap.putIfAbsent(trimmedId, new HashSet<>());
-                    idListenerMap.get(trimmedId).add(field);
+                    idListenerMap.get(trimmedId).add(new Pair<>(listener.addFunction().isEmpty() ? null : listener.addFunction(), field));
                 }
             }
             final ComponentAction componentAction = field.getDeclaredAnnotation(ComponentAction.class);
@@ -161,7 +166,7 @@ public class SwingOutXml {
                             String.format("Only one action can be associated to an element using @ComponentAction(id). Multiple ComponentActions contain %s in %s",
                                 trimmedId, topLevelContainer.getClass().getName()));
                     }
-                    idComponentActionMap.put(trimmedId, Collections.singleton(field));
+                    idComponentActionMap.put(trimmedId, Collections.singleton(new Pair<>("", field)));
                 }
             }
         }
@@ -264,6 +269,7 @@ public class SwingOutXml {
             }
         }
 
+        swingOutXml.setPreferredSize(rootElement, topLevelContainer);
         if (topLevelContainer instanceof Window) {
             ((Window) topLevelContainer).pack();
         }
@@ -508,32 +514,41 @@ public class SwingOutXml {
     }
 
     /**
-     * Finds the field or fields specified by an XML element's attribute.
+     * Finds the field or fields specified by an XML element's attribute or in an annotation. When the annotationType is
+     * Listener, the key of the Pair in each set element could be a string representing a function name that is used to
+     * add the listener to a component.
      * @param element           the XML element
      * @param annotationType    the type of annotation to look at on found field(s)
      * @param attribute         which attribute to look at (field, listeners, action)
-     * @return a Set of Fields that match the element, or a singleton set if allowMultiple is true and a match is found
+     * @return a Set of String/Field Pairs that match the element
      */
-    // todo make this return set of pair<method, field>
-    private Set<Field> findAssociatedFields(final Element element, final Class<? extends Annotation> annotationType,
+    private Set<Pair<String, Field>> findAssociatedFields(final Element element, final Class<? extends Annotation> annotationType,
             final String attribute) {
-        final Set<Field> result = new HashSet<>();
-        final List<String> fieldNames = DomUtils.getAttributeAsList(attribute, element);
-        if (!fieldNames.isEmpty()) {
-            for (final String fieldName: fieldNames) {
+        final Set<Pair<String, Field>> result = new HashSet<>();
+        final List<String> parts = DomUtils.getAttributeAsList(attribute, element);
+        if (!parts.isEmpty()) {
+            for (final String part: parts) {
                 try {
-                    final Field field = topLevelContainer.getClass().getDeclaredField(fieldName);
-                    field.setAccessible(true);
-                    result.add(field);
+                    final Matcher matcher = monadicFunctionCallPattern.matcher(part);
+                    if (matcher.matches()) {
+                        final String fieldName = matcher.group(2);
+                        final Field field = topLevelContainer.getClass().getDeclaredField(fieldName);
+                        field.setAccessible(true);
+                        result.add(new Pair<>(matcher.group(1), field));
+                    } else {
+                        final Field field = topLevelContainer.getClass().getDeclaredField(part);
+                        field.setAccessible(true);
+                        result.add(new Pair<>("", field));
+                    }
                 } catch (final NoSuchFieldException nsfe) {
                     throw new IllegalArgumentException(String.format("can't find member \"%s\" in class %s",
-                        fieldName, topLevelContainer.getClass().getName()));
+                        part, topLevelContainer.getClass().getName()));
                 }
             }
         } else {
             final String id = DomUtils.getAttribute(A_ID, element);
             if (id != null) {
-                final Collection<Field> fieldCollection = mapMap.get(annotationType).get(id);
+                final Collection<Pair<String, Field>> fieldCollection = mapMap.get(annotationType).get(id);
                 if (fieldCollection != null) {
                     result.addAll(fieldCollection);
                 }
@@ -551,19 +566,19 @@ public class SwingOutXml {
      * @return the found fields
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
-    // todo make this map set of pair<method, field> to current return
     private Set<Field> findAssociatedFields(final Element element) {
-        return findAssociatedFields(element, UiComponent.class, A_FIELD);
+        return findAssociatedFields(element, UiComponent.class, A_FIELD).stream().map(Pair::getValue).collect(Collectors.toSet());
     }
 
     /**
-     * Finds the fields in topLevelContainer that are listeners to be added to the JComponent corresponding to element
+     * Finds the fields in topLevelContainer that are listeners to be added to the JComponent corresponding to element.
+     * If the listener annotations/XML attributes contain function names to invoke to add the listeners, those are
+     * returned in the key part of the Pairs, otherwise the key is ""
      * @param element XML element corresponding to a component
      * @return the found fields
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
-    // todo make this return set of pair<method, field>
-    private Set<Field> findAssociatedListeners(final Element element) {
+    private Set<Pair<String, Field>> findAssociatedListeners(final Element element) {
         return findAssociatedFields(element, Listener.class, A_LISTENERS);
     }
 
@@ -573,10 +588,9 @@ public class SwingOutXml {
      * @return the found field
      * @throws IllegalArgumentException invalid config that didn't match a field
      */
-    // todo make this map set of pair<method, field> to current return
     private Field findAssociatedAction(final Element element) {
-        final Set<Field> fields = findAssociatedFields(element, ComponentAction.class, A_ACTION);
-        return !fields.isEmpty() ? fields.iterator().next() : null;
+        final Set<Pair<String, Field>> fields = findAssociatedFields(element, ComponentAction.class, A_ACTION);
+        return !fields.isEmpty() ? fields.iterator().next().getValue() : null;
     }
 
     /**
@@ -597,14 +611,16 @@ public class SwingOutXml {
     }
 
     /**
-     * Adds all specified ActionListeners to the button.
-     * @param xmlElement XML element describing the button being modified
-     * @param component the component to add ActionListeners to
+     * Adds all specified listeners to the component
+     * @param xmlElement XML element describing the component
+     * @param component the component to add listeners to
      * todo: throw different exceptions when ClassCastException happens for better error messages
      */
-    private void addListeners(final Element xmlElement, final JComponent component) {
-        final Set<Field> listenerFields = findAssociatedListeners(xmlElement);
-        for (final Field field: listenerFields) {
+    private void addListeners(final Element xmlElement, final JComponent component) throws InvocationTargetException {
+        final Set<Pair<String, Field>> listenerFields = findAssociatedListeners(xmlElement);
+        for (final Pair<String, Field> pair: listenerFields) {
+            final String functionName = pair.getKey().trim();
+            final Field field = pair.getValue();
             if (!EventListener.class.isAssignableFrom(field.getType())) {
                 throw new IllegalArgumentException(String.format("%s in %s is not an EventListener", field, topLevelContainer));
             }
@@ -617,7 +633,6 @@ public class SwingOutXml {
             }
             boolean added = false;
             // todo: use getClass or isAssignableFrom instead since instanceof behaves weirdly with some of these Mouse ones
-            System.out.println(listener);
             if (listener instanceof MouseListener) {
                 component.addMouseListener((MouseListener) listener);
                 added = true;
@@ -669,6 +684,26 @@ public class SwingOutXml {
                         component, field));
                 }
                 added = true;
+            }
+            if (!functionName.isEmpty()) {
+                Method function = null;
+                final Method[] allFunctions = component.getClass().getDeclaredMethods();
+                for (final Method m: allFunctions) {
+                    if (m.getName().equals(functionName)) {
+                        function = m;
+                        try {
+                            function.invoke(component, listener);
+                            added = true;
+                        } catch (final IllegalArgumentException iae) {
+                            // wrong overloaded function: keep trying
+                        } catch (final IllegalAccessException iae) {
+                            throw new IllegalArgumentException(String.format("addFunction for listener is not public: %s", functionName), iae);
+                        }
+                    }
+                }
+                if (function == null) {
+                    throw new IllegalArgumentException(String.format("No function %s in %s", functionName, component.getClass()));
+                }
             }
             if (!added) {
                 //todo logger

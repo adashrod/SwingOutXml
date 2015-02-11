@@ -82,5 +82,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ComponentAction {
+    /**
+     * @return IDs of XML elements to attach this action to
+     */
     String[] value() default {};
 }

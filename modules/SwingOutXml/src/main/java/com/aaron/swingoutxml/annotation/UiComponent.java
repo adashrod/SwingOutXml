@@ -57,5 +57,8 @@ import java.lang.annotation.Target;
 @Target({ElementType.FIELD})
 @Retention(value = RetentionPolicy.RUNTIME)
 public @interface UiComponent {
+    /**
+     * @return IDs of XML elements to bind to this component
+     */
     String[] value() default {};
 }
