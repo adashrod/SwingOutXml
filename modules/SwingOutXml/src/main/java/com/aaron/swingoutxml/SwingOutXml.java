@@ -110,6 +110,11 @@ public class SwingOutXml {
     // layout-orientation
     // cell-renderer
     // tool-tip-text
+    // modal
+    // modality
+    // JFrame: graphicsConfiguration (c only)
+    // JWindow: owner (c only), graphicsConfiguration (c only)
+    // JDialog: owner (c only), , graphicsConfiguration (c only)
 
     static {
         componentClasses.put("JButton", JButton.class);
@@ -189,11 +194,6 @@ public class SwingOutXml {
      */
     public static <T extends Container> T create(final Class<T> swingClass, final Object... paramConstructorArgs)
             throws IOException, SAXException, InvocationTargetException {
-// todo: stuff to add to heavyweight component's XML attributes
-//        JFrame: graphicsConfiguration (c only)
-//        JWindow: owner (c only), graphicsConfiguration (c only)
-//        JDialog: owner (c only), modal, modality, graphicsConfiguration (c only)
-
         final SwingOutContainer swingOutContainer = swingClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer == null) {
             throw new IllegalArgumentException("has to implement SwingOutContainer");
@@ -338,6 +338,7 @@ public class SwingOutXml {
      * @throws SAXException
      * @throws IOException
      * @throws InvocationTargetException
+     * todo: make a similar createContainer for heavyweights?
      */
     @SuppressWarnings("unchecked")
     private JComponent createJComponent(final Element xmlElement) throws SAXException, IOException, InvocationTargetException {
