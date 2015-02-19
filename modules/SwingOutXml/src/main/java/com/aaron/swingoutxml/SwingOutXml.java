@@ -428,7 +428,6 @@ public class SwingOutXml {
 
     /**
      * Sets the text of the component if applicable. The text comes from the TextNode child node of the element
-     * todo: add support for things that extend JLabel, JButton, etc
      * @param element the XML element containing text
      * @param jComponent the component on which to set text
      */
@@ -436,8 +435,10 @@ public class SwingOutXml {
         if (element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE) {
             if (jComponent instanceof AbstractButton) {
                 ((AbstractButton) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
-            } else if (jComponent.getClass() == JLabel.class) {
+            } else if (jComponent instanceof JLabel) {
                 ((JLabel) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
+            } else if (jComponent instanceof JTextComponent) {
+                ((JTextComponent) jComponent).setText(element.getChildNodes().item(0).getNodeValue());
             }
         }
     }
