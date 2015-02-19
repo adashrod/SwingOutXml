@@ -1,6 +1,15 @@
 package com.aaron.swingoutxml.util;
 
+/**
+ * Utilities for name-related tasks, such as parsing or finding class names.
+ */
 public class NameUtils {
+    /**
+     * Converts a dashed name to a camel-case one, e.g. "j-text-field" to "JTextField". The first letter will always be
+     * capitalized. If the dashedName has no dashes, then it is returned as-is, but with the first letter capitalized.
+     * @param dashedName dashed name to convert
+     * @return a camel-case name
+     */
     public static String dashedToCamel(final String dashedName) {
         if (dashedName.isEmpty()) {
             return "";
@@ -21,6 +30,13 @@ public class NameUtils {
         return result.toString();
     }
 
+    /**
+     * Returns the presumed class name for the given name. If the name has dots in it, it is presumed to be a fully-
+     * qualified class name. Otherwise it is presumed to be a reserved name in either dashed or camel case, such as
+     * "j-text-field" or "JTextField"
+     * @param name name to parse
+     * @return a class name for the given name
+     */
     public static String getClassNameForElement(final String name) {
         if (name.indexOf('.') == -1) {
             return dashedToCamel(name);
