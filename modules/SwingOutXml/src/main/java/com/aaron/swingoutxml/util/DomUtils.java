@@ -95,8 +95,15 @@ public class DomUtils {
             final Attr attribute = (Attr) namedNodeMap.item(i);
             result.append(" ").append(attribute.getName()).append("=\"").append(attribute.getValue()).append("\"");
         }
-        if (element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE) {
+
+        final boolean noChildren = element.getChildNodes().getLength() == 0;
+        final boolean oneTextChild = element.getChildNodes().getLength() == 1 && element.getChildNodes().item(0).getNodeType() == Node.TEXT_NODE;
+        final boolean oneNonWhitespaceTextChild = oneTextChild && !element.getChildNodes().item(0).getNodeValue().trim().isEmpty();
+        final boolean oneWhitespaceTextChild = oneTextChild && element.getChildNodes().item(0).getNodeValue().trim().isEmpty();
+        if (oneNonWhitespaceTextChild) {
             result.append(">").append(element.getChildNodes().item(0).getNodeValue()).append("</").append(element.getTagName()).append(">");
+        } else if (noChildren || oneWhitespaceTextChild) {
+            result.append("/>");
         } else {
             result.append(">\n");
             for (int i = 0; i < element.getChildNodes().getLength(); i++) {
