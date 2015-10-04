@@ -66,7 +66,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 // todo:
-// consider changing top-level instantiation logic to be like: found <j-frame/>, use JFrame.class, then it might not be necessary for swingClasses to extend JFrame (could do both as alternatives)
+// putting processRootNode into the body of treeTraverse would allow pack()ing of frames after they've been populated
 // put XML attributes somewhere else
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
@@ -76,12 +76,14 @@ import java.util.stream.Collectors;
  *
  * @see com.aaron.swingoutxml.annotation.SwingOutContainer
  * @see com.aaron.swingoutxml.annotation.UiComponent
+ * @see com.aaron.swingoutxml.annotation.Listener
+ * @see com.aaron.swingoutxml.annotation.ComponentAction
  * @see com.aaron.swingoutxml.PostSetup
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 public class SwingOutXml {
+    private static final Map<String, Class<? extends Container>> containerClasses = new HashMap<>();
     private static final Map<String, Class<? extends JComponent>> componentClasses = new HashMap<>();
-    private static final Collection<Class<? extends JComponent>> leafTypeClasses = new HashSet<>();
     /**
      * Map containing all of the containers and components created by SwingOutXml
      */
@@ -89,7 +91,7 @@ public class SwingOutXml {
 
     private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*"));
 
-    private final Pattern monadicFunctionCallPattern = Pattern.compile("^\\s*([^()]+)\\s*\\(\\s*([^()]+)\\s*\\)\\s*$");
+    private static final Pattern monadicFunctionCallPattern = Pattern.compile("^\\s*([^()]+)\\s*\\(\\s*([^()]+)\\s*\\)\\s*$");
 
     private static final String A_ID = "id";
     private static final String A_FIELD = "field";
@@ -117,6 +119,8 @@ public class SwingOutXml {
     // JDialog: owner (c only), , graphicsConfiguration (c only)
 
     static {
+        containerClasses.put("JFrame", JFrame.class);
+
         componentClasses.put("JButton", JButton.class);
         componentClasses.put("JCheckBox", JCheckBox.class);
         componentClasses.put("JComponent", JComponent.class);
@@ -127,24 +131,28 @@ public class SwingOutXml {
         componentClasses.put("JScrollPane", JScrollPane.class);
         componentClasses.put("JTextArea", JTextArea.class);
         componentClasses.put("JTextField", JTextField.class);
-
-        leafTypeClasses.add(JButton.class);
-        leafTypeClasses.add(JLabel.class);
-        leafTypeClasses.add(JTextArea.class);
     }
 
-    private final Container topLevelContainer;
+    /**
+     * The context used for finding fields; the object that has the \@SwingOutXml annotation. When create() is used, this
+     * is a new instance of the class passed in; in render(), it is the object passed in
+     */
+    private Object context;
+    /**
+     * The top level container being rendered, e.g. a JFrame. When create() is used, topLevelContainer == context
+     */
+    private Container topLevelContainer;
     /**
      * map of annotation type to which map should be queried for that annotation type to find ID associations
      */
     private final Map<Class<? extends Annotation>, Map<String, Collection<Pair<String, Field>>>> mapMap = new HashMap<>();
 
-    private SwingOutXml(final Container topLevelContainer) {
-        this.topLevelContainer = topLevelContainer;
+    private void setContext(final Object context) {
+        this.context = context;
         final Map<String, Collection<Pair<String, Field>>> idUiComponentMap = new HashMap<>(),
             idListenerMap = new HashMap<>(),
             idComponentActionMap = new HashMap<>();
-        for (final Field field: topLevelContainer.getClass().getDeclaredFields()) {
+        for (final Field field: context.getClass().getDeclaredFields()) {
             final UiComponent uiComponent = field.getDeclaredAnnotation(UiComponent.class);
             field.setAccessible(true);
             if (uiComponent != null) {
@@ -159,7 +167,7 @@ public class SwingOutXml {
                 for (final String id: listener.value()) {
                     final String trimmedId = id.trim();
                     idListenerMap.putIfAbsent(trimmedId, new HashSet<>());
-                    idListenerMap.get(trimmedId).add(new Pair<>(listener.addFunction().isEmpty() ? null : listener.addFunction(), field));
+                    idListenerMap.get(trimmedId).add(new Pair<>(listener.addFunction(), field));
                 }
             }
             final ComponentAction componentAction = field.getDeclaredAnnotation(ComponentAction.class);
@@ -169,7 +177,7 @@ public class SwingOutXml {
                     if (idComponentActionMap.containsKey(trimmedId)) {
                         throw new IllegalArgumentException(
                             String.format("Only one action can be associated to an element using @ComponentAction(id). Multiple ComponentActions contain %s in %s",
-                                trimmedId, topLevelContainer.getClass().getName()));
+                                trimmedId, context.getClass().getName()));
                     }
                     idComponentActionMap.put(trimmedId, Collections.singleton(new Pair<>("", field)));
                 }
@@ -184,7 +192,6 @@ public class SwingOutXml {
      * Creates an instance of the swingClass and lays out its UI according to the template file specified in the
      * {@link com.aaron.swingoutxml.annotation.SwingOutContainer} annotation. If swingClass implements
      * {@link PostSetup}, afterCreate is run as the last step.
-     * todo: make create(Component)
      * @param swingClass the class to instantiate
      * @param paramConstructorArgs arguments to pass to the construction of swingClass. Arguments can also be passed in
      *                             from XML. Anything in paramConstructorArgs overrides these.
@@ -193,20 +200,52 @@ public class SwingOutXml {
      * @throws InvocationTargetException
      */
     public static <T extends Container> T create(final Class<T> swingClass, final Object... paramConstructorArgs)
-            throws IOException, SAXException, InvocationTargetException {
+            throws IOException, SAXException, InvocationTargetException, NoSuchMethodException, ParseException {
         final SwingOutContainer swingOutContainer = swingClass.getDeclaredAnnotation(SwingOutContainer.class);
         if (swingOutContainer == null) {
             throw new IllegalArgumentException("has to implement SwingOutContainer");
         }
         final String templateFile = swingOutContainer.template();
         final Document xmlDoc = new XmlLoader().load(templateFile);
-        final Element rootElement = (Element) xmlDoc.getChildNodes().item(0); // todo: make this account for comments
+        final Element rootElement = xmlDoc.getDocumentElement();
 
-        // todo put in processNode?
-        final Container topLevelContainer;
+        final SwingOutXml swingOutXml = new SwingOutXml();
+        final Container topLevelContainer = swingOutXml.processRootNodeForCreate(rootElement, swingClass, paramConstructorArgs);
+        swingOutXml.setContext(topLevelContainer);
+        swingOutXml.topLevelContainer = topLevelContainer;
+        swingOutXml.treeTraverse(rootElement);
+        if (topLevelContainer instanceof Window) {
+            ((Window) topLevelContainer).pack();
+        }
+        if (topLevelContainer instanceof PostSetup) {
+            ((PostSetup) topLevelContainer).afterCreate();
+        }
+        return swingClass.cast(topLevelContainer);
+    }
+
+    public static Container render(final Object object, final Object... paramConstructorArgs) throws IOException, SAXException,
+            InvocationTargetException, NoSuchMethodException, ParseException {
+        final SwingOutContainer swingOutContainer = object.getClass().getDeclaredAnnotation(SwingOutContainer.class);
+        if (swingOutContainer == null) {
+            throw new IllegalArgumentException("has to implement SwingOutContainer");
+        }
+        final String templateFile = swingOutContainer.template();
+        final Document xmlDoc = new XmlLoader().load(templateFile);
+        final Element rootElement = xmlDoc.getDocumentElement();
+
+        final SwingOutXml swingOutXml = new SwingOutXml();
+        swingOutXml.setContext(object);
+        swingOutXml.topLevelContainer = swingOutXml.processRootNode(rootElement, paramConstructorArgs);
+        swingOutXml.treeTraverse(rootElement);
+        ((Window) swingOutXml.topLevelContainer).pack();
+        return swingOutXml.topLevelContainer;
+    }
+
+    private Container processRootNodeForCreate(final Element rootElement, final Class<? extends Container> swingClass, final Object... paramConstructorArgs) throws InvocationTargetException {
         final List<String> constructorArgString = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, rootElement);
         final Class<?>[] xmlConstructorClasses = new Class<?>[constructorArgString.size()];
         final Object[] xmlConstructorArgs = new Object[constructorArgString.size()];
+        // todo: consolidate this loop with code in createJComponent
         for (int i = 0; i < constructorArgString.size(); i++) {
             final Pair<Class<?>, Object> p;
             try {
@@ -220,13 +259,14 @@ public class SwingOutXml {
         final Class<?>[] paramConstructorClasses = new Class<?>[paramConstructorArgs.length];
         Arrays.asList(paramConstructorArgs).stream().map(Object::getClass).collect(Collectors.toList()).toArray(paramConstructorClasses);
         final Constructor<? extends Container> constructor;
+        final Container container;
         try {
             if (paramConstructorArgs.length > 0) {
                 constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(swingClass, paramConstructorClasses);
-                topLevelContainer = constructor.newInstance(paramConstructorArgs);
+                container = constructor.newInstance(paramConstructorArgs);
             } else {
                 constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(swingClass, xmlConstructorClasses);
-                topLevelContainer = constructor.newInstance(xmlConstructorArgs);
+                container = constructor.newInstance(xmlConstructorArgs);
             }
             final String id = DomUtils.getAttribute(A_ID, rootElement);
             if (id != null) {
@@ -234,7 +274,7 @@ public class SwingOutXml {
                     throw new IllegalArgumentException(String.format("XML ID \"%s\" duplicated. First usage for %s; duplicate: %s",
                         id, idMap.get(id), DomUtils.toString(rootElement)));
                 }
-                idMap.put(id, topLevelContainer);
+                idMap.put(id, container);
             }
         } catch (final NoSuchMethodException nsme) {
             throw new IllegalArgumentException(String.format("Unable to find a constructor for %s with the signature: %s",
@@ -244,12 +284,38 @@ public class SwingOutXml {
             //  shouldn't be a problem, but will probably be refactored out when instantiation is dependent on XML root element
             throw new IllegalArgumentException(e);
         }
+        setLayout(rootElement, container);
+        setTitle(rootElement, container);
+        setPreferredSize(rootElement, container);
+        final Boolean visible = DomUtils.getAttribute(A_VISIBLE, rootElement, Boolean.class);
+        if (visible != null) {
+            container.setVisible(visible);
+        }
+        return container;
+    }
 
-        final SwingOutXml swingOutXml = new SwingOutXml(topLevelContainer);
+    private Container processRootNode(final Element rootElement, final Object... paramConstructorArgs) throws SAXException,
+            IOException, InvocationTargetException, NoSuchMethodException, ParseException {
+        // todo: use constructor args
+        final Container container = createContainer(rootElement);
 
-        swingOutXml.setLayout(rootElement, topLevelContainer);
-        swingOutXml.setTitle(rootElement, topLevelContainer);
+        if (container instanceof Window) {
+            ((Window) container).pack();
+        }
+        final Boolean visible = DomUtils.getAttribute(A_VISIBLE, rootElement, Boolean.class);
+        if (visible != null) {
+            container.setVisible(visible);
+        }
 
+        setFields(rootElement, container);
+        addListeners(rootElement, container);
+        setLayout(rootElement, container);
+        setTitle(rootElement, container);
+        return container;
+    }
+
+    private void treeTraverse(final Element rootElement) throws SAXException, IOException, InvocationTargetException,
+            NoSuchMethodException, ParseException {
         final Deque<PairedTreeNode> queue = new LinkedList<>();
         queue.addLast(new PairedTreeNode(rootElement, topLevelContainer));
         while (!queue.isEmpty()) {
@@ -260,7 +326,7 @@ public class SwingOutXml {
             if (childNodes.getLength() > 1 || (childNodes.getLength() == 1 && childNodes.item(0).getNodeType() != Node.TEXT_NODE)) {
                 for (int i = 0; i < childNodes.getLength(); i++) {
                     final Node childNode = childNodes.item(i);
-                    final JComponent component = swingOutXml.processNode(pairedNode.container, childNode);
+                    final JComponent component = processNode(pairedNode.container, childNode);
                     if (component != null) {
                         // component shouldn't be non-null if childNode isn't an Element
                         queue.addLast(new PairedTreeNode((Element) childNode, component));
@@ -268,19 +334,6 @@ public class SwingOutXml {
                 }
             }
         }
-
-        swingOutXml.setPreferredSize(rootElement, topLevelContainer);
-        if (topLevelContainer instanceof Window) {
-            ((Window) topLevelContainer).pack();
-        }
-        final Boolean visible = DomUtils.getAttribute(A_VISIBLE, rootElement, Boolean.class);
-        if (visible != null) {
-            topLevelContainer.setVisible(visible);
-        }
-        if (topLevelContainer instanceof PostSetup) {
-            ((PostSetup) topLevelContainer).afterCreate();
-        }
-        return swingClass.cast(topLevelContainer);
     }
 
     /**
@@ -294,7 +347,7 @@ public class SwingOutXml {
      * @throws InvocationTargetException
      */
     private JComponent processNode(final Container parentContainer, final Node xmlNode)
-            throws SAXException, IOException, InvocationTargetException {
+            throws SAXException, IOException, InvocationTargetException, NoSuchMethodException, ParseException {
         final Element childElement;
         if (xmlNode.getNodeType() == Node.ELEMENT_NODE) {
             childElement = (Element) xmlNode;
@@ -313,7 +366,7 @@ public class SwingOutXml {
         if (constraintsString != null) {
             final Pair<Class<?>, Object> constraintsPair;
             try {
-                constraintsPair = ReflectionUtils.parseToken(topLevelContainer, null, idMap, awtPackages, constraintsString);
+                constraintsPair = ReflectionUtils.parseToken(context, null, idMap, awtPackages, constraintsString);
             } catch (final ParseException pe) {
                 throw new IllegalArgumentException(String.format("%s in element %s", pe.getMessage(), DomUtils.toString(childElement)));
             }
@@ -329,6 +382,77 @@ public class SwingOutXml {
         return jComponent;
     }
 
+    @SuppressWarnings("unchecked")
+    private Container createContainer(final Element element) throws SAXException, IOException, InvocationTargetException,
+            NoSuchMethodException, ParseException {
+        final String containerName = element.getTagName();
+        final String className = NameUtils.getClassNameForElement(containerName);
+        final Class<? extends Container> containerClass, finalContainerClass;
+        if (containerClasses.containsKey(className)) {
+            containerClass = containerClasses.get(className);
+        } else {
+            final Class customClass;
+            try {
+                customClass = Class.forName(className);
+            } catch (final ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException(String.format("Unable to find class %s from XML: %s", className, DomUtils.toString(element)), cnfe);
+            }
+            if (!Container.class.isAssignableFrom(customClass)) {
+                throw new IllegalArgumentException("custom element doesn't extend JComponent");
+            }
+            containerClass = customClass;
+        }
+        final Container container;
+        if (containerClass == Container.class) {
+            final Set<Field> fields = findAssociatedFields(element);
+            if (fields.isEmpty()) {
+                throw new IllegalArgumentException(String.format("when using Container in the XML, you must provide a field name of a member that is a concrete class, or annotate a field and include the ID of the element in the XML.: %s", DomUtils.toString(element)));
+            }
+            final Class concreteContainerClass = fields.iterator().next().getType();
+            if (!containerClass.isAssignableFrom(concreteContainerClass)) {
+                final String fieldString = DomUtils.getAttribute(A_FIELD, element);
+                throw new IllegalArgumentException(String.format("%s.%s doesn't extend Container",
+                    concreteContainerClass.getName(), fieldString));
+            }
+            for (final Field field: fields) {
+                if (!field.getType().equals(concreteContainerClass)) {
+                    throw new IllegalArgumentException(String.format("when using Container in the XML, all bound fields must be of the same type: %s", DomUtils.toString(element)));
+                }
+            }
+            finalContainerClass = concreteContainerClass;
+        } else {
+            finalContainerClass = containerClass;
+        }
+        final SwingOutContainer swingOutContainer = finalContainerClass.getDeclaredAnnotation(SwingOutContainer.class);
+        if (swingOutContainer != null) {
+            // todo: pass constructor-args param to create
+            container = SwingOutXml.create(finalContainerClass);
+        } else {
+            try {
+                container = finalContainerClass.newInstance();
+            } catch (final IllegalAccessException iae) {
+                throw new IllegalArgumentException(String.format("Default constructor for %s is not public", finalContainerClass.getName()), iae);
+            } catch (final InstantiationException ie) {
+                throw new IllegalArgumentException(String.format("Unable to instantiate %s from XML: %s", finalContainerClass.getName(), DomUtils.toString(element)), ie);
+            }
+        }
+        final String id = DomUtils.getAttribute(A_ID, element);
+        if (id != null) {
+            if (idMap.containsKey(id)) {
+                throw new IllegalArgumentException(String.format("XML ID \"%s\" duplicated. First usage for %s; duplicate: %s",
+                    id, idMap.get(id), DomUtils.toString(element)));
+            }
+            idMap.put(id, container);
+        }
+        setEnabled(element, container);
+        setTitle(element, container);
+//        setLayout(element, container);
+//        setText(element, container);
+        setPreferredSize(element, container);
+        setEditable(element, container);
+        return container;
+    }
+
     /**
      * Creates a JComponent from an XML element in a template, and sets the text if there is any.
      * in the cases where Class casting is unchecked, it actually has been checked and an IllegalArgumentException is
@@ -341,7 +465,7 @@ public class SwingOutXml {
      * todo: make a similar createContainer for heavyweights?
      */
     @SuppressWarnings("unchecked")
-    private JComponent createJComponent(final Element xmlElement) throws SAXException, IOException, InvocationTargetException {
+    private JComponent createJComponent(final Element xmlElement) throws SAXException, IOException, InvocationTargetException, ParseException, NoSuchMethodException {
         final String componentName = xmlElement.getLocalName();
         final String className = NameUtils.getClassNameForElement(componentName);
         final Class<? extends JComponent> componentClass, finalComponentClass;
@@ -386,7 +510,22 @@ public class SwingOutXml {
             jComponent = SwingOutXml.create(finalComponentClass);
         } else {
             try {
-                jComponent = finalComponentClass.newInstance();
+                // todo: refactor code out of processRootNodeForCreate() to get constructor
+                final List<String> constructorArgStrings = DomUtils.getAttributeAsList(A_CONSTRUCTOR_ARGS, xmlElement);
+                if (constructorArgStrings.isEmpty()) {
+                    jComponent = finalComponentClass.newInstance();
+                } else {
+                    final Class<?>[] argClassesArray = new Class<?>[constructorArgStrings.size()];
+                    final Object[] args = new Object[constructorArgStrings.size()];
+                    for (int i = 0; i < constructorArgStrings.size(); i++) {
+                        final String cArg = constructorArgStrings.get(i);
+                        final Pair<Class<?>, Object> pair = ReflectionUtils.parseToken(context, null, idMap, awtPackages, cArg);
+                        argClassesArray[i] = pair.getKey();
+                        args[i] = pair.getValue();
+                    }
+                    final Constructor<? extends JComponent> constructor = ReflectionUtils.getDeclaredConstructorPolymorphic(finalComponentClass, argClassesArray);
+                    jComponent = constructor.newInstance(args);
+                }
             } catch (final IllegalAccessException iae) {
                 throw new IllegalArgumentException(String.format("Default constructor for %s is not public", finalComponentClass.getName()), iae);
             } catch (final InstantiationException ie) {
@@ -453,9 +592,9 @@ public class SwingOutXml {
             return;
         }
         if (container instanceof JFrame) {
-            ((JFrame) topLevelContainer).setTitle(title);
+            ((JFrame) container).setTitle(title);
         } else if (container instanceof JDialog) {
-            ((JDialog) topLevelContainer).setTitle(title);
+            ((JDialog) container).setTitle(title);
         } else {
             // todo: add more context
             throw new IllegalArgumentException(String.format("The title attribute is not supported on %s elements", rootElement.getTagName()));
@@ -534,17 +673,17 @@ public class SwingOutXml {
                     final Matcher matcher = monadicFunctionCallPattern.matcher(part);
                     if (matcher.matches()) {
                         final String fieldName = matcher.group(2);
-                        final Field field = topLevelContainer.getClass().getDeclaredField(fieldName);
+                        final Field field = context.getClass().getDeclaredField(fieldName);
                         field.setAccessible(true);
                         result.add(new Pair<>(matcher.group(1), field));
                     } else {
-                        final Field field = topLevelContainer.getClass().getDeclaredField(part);
+                        final Field field = context.getClass().getDeclaredField(part);
                         field.setAccessible(true);
                         result.add(new Pair<>("", field));
                     }
                 } catch (final NoSuchFieldException nsfe) {
                     throw new IllegalArgumentException(String.format("can't find member \"%s\" in class %s",
-                        part, topLevelContainer.getClass().getName()));
+                        part, context.getClass().getName()));
                 }
             }
         } else {
@@ -560,7 +699,7 @@ public class SwingOutXml {
     }
 
     /**
-     * Finds the fields in topLevelContainer that should be associated (bound) with the XML element. First tries to find
+     * Finds the fields in context that should be associated (bound) with the XML element. First tries to find
      * the field by the "field" attribute in element; if there is none, tries to find the field by its ID value of its
      * UiComponent annotation.
      * @see com.aaron.swingoutxml.annotation.UiComponent documentation for examples
@@ -573,7 +712,7 @@ public class SwingOutXml {
     }
 
     /**
-     * Finds the fields in topLevelContainer that are listeners to be added to the JComponent corresponding to element.
+     * Finds the fields in context that are listeners to be added to the JComponent corresponding to element.
      * If the listener annotations/XML attributes contain function names to invoke to add the listeners, those are
      * returned in the key part of the Pairs, otherwise the key is ""
      * @param element XML element corresponding to a component
@@ -585,7 +724,7 @@ public class SwingOutXml {
     }
 
     /**
-     * Finds the field in topLevelContainer that is an action to be set on the JComponent corresponding to element
+     * Finds the field in context that is an action to be set on the JComponent corresponding to element
      * @param element XML element corresponding to a component
      * @return the found field
      * @throws IllegalArgumentException invalid config that didn't match a field
@@ -600,16 +739,20 @@ public class SwingOutXml {
      * @param element the XML element that was used to instantiate the JComponent
      * @param component the component to set
      */
-    private void setFields(final Element element, final JComponent component) {
+    private void setFields(final Element element, final Container component) {
         final Set<Field> fields = findAssociatedFields(element);
         if (!fields.isEmpty()) {
             for (final Field field: fields) {
                 try {
                     // todo: catch some exception if setting an incompatible type
-                    field.set(topLevelContainer, component);
+                    field.set(context, component);
                 } catch (final IllegalAccessException ignored) {}
             }
         }
+    }
+
+    private void addListeners(final Element element, final Container container) {
+        // todo: add all of the container listeners here
     }
 
     /**
@@ -624,11 +767,11 @@ public class SwingOutXml {
             final String functionName = pair.getKey().trim();
             final Field field = pair.getValue();
             if (!EventListener.class.isAssignableFrom(field.getType())) {
-                throw new IllegalArgumentException(String.format("%s in %s is not an EventListener", field, topLevelContainer));
+                throw new IllegalArgumentException(String.format("%s in %s is not an EventListener", field, context));
             }
             final EventListener listener;
             try {
-                listener = (EventListener) field.get(topLevelContainer);
+                listener = (EventListener) field.get(context);
             } catch (final IllegalAccessException iae) {
                 // impossible
                 continue;
@@ -725,8 +868,8 @@ public class SwingOutXml {
             final Field field = findAssociatedAction(xmlElement);
             if (field != null) {
                 try {
-                    button.setAction((Action) field.get(topLevelContainer));
-                    // todo: override action name with xml node value
+                    button.setAction((Action) field.get(context));
+                    // todo: override action name with xml node value (maybe)
                 } catch (final IllegalAccessException ignored) {}
             }
         }
