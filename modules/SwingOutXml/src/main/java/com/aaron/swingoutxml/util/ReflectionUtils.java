@@ -8,7 +8,6 @@ import java.lang.reflect.Field;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -21,29 +20,6 @@ public class ReflectionUtils {
     private static final Pattern stringArgPattern = Pattern.compile("(?:'([^']*)'|\"([^\"]*)\")");
     private static final Pattern keywordPattern = Pattern.compile("(\\{[^}:]*\\})");
     private static final Pattern idPattern = Pattern.compile("^\\s*\\{id:([^}:]*)\\}\\s*$");
-
-    private static final Map<Class<?>, Class<?>> primitiveMap = new HashMap<>();
-    private static final Map<Class<?>, Class<?>> primitiveInverseMap = new HashMap<>();
-
-    static {
-        primitiveMap.put(Boolean.class, boolean.class);
-        primitiveMap.put(Character.class, char.class);
-        primitiveMap.put(Byte.class, byte.class);
-        primitiveMap.put(Short.class, short.class);
-        primitiveMap.put(Integer.class, int.class);
-        primitiveMap.put(Long.class, long.class);
-        primitiveMap.put(Float.class, float.class);
-        primitiveMap.put(Double.class, double.class);
-
-        primitiveInverseMap.put(boolean.class, Boolean.class);
-        primitiveInverseMap.put(char.class, Character.class);
-        primitiveInverseMap.put(byte.class, Byte.class);
-        primitiveInverseMap.put(short.class, Short.class);
-        primitiveInverseMap.put(int.class, Integer.class);
-        primitiveInverseMap.put(long.class, Long.class);
-        primitiveInverseMap.put(float.class, Float.class);
-        primitiveInverseMap.put(double.class, Double.class);
-    }
 
     /**
      * Attempts to get a Class by its name. This is just a wrapper for {@link Class#forName(String)}, except that it also
@@ -115,54 +91,7 @@ public class ReflectionUtils {
      */
     public static <T> Constructor<T> getDeclaredConstructorPolymorphic(final Class<T> c, final Class<?>... classes)
             throws NoSuchMethodException {
-        final Class[] copy = Arrays.copyOf(classes, classes.length);
-        final Iterator<Class<?>[]> iterator = new Iterator<Class<?>[]>() {
-            private boolean firstIteration = true;
-            /**
-             * Returns the superclass of klass with special behavior for primitives and primitive wrappers. In the case
-             * where a primitive is auto-boxed to its wrapper class, this iterator would for example go Integer ->
-             * Number -> Object -> null, when it should have gone int -> null. This function changes that path to be
-             * Integer -> int -> Number -> Object -> null so that construction signatures with primitive formal types
-             * will not be missed.
-             * @param klass a class to get a superclass of
-             * @return the superclass, corresponding primitive, or corresponding wrapper's superclass
-             */
-            private Class<?> getNextClass(final Class<?> klass) {
-                if (primitiveMap.keySet().contains(klass)) {
-                    return primitiveMap.get(klass);
-                } else if (primitiveMap.values().contains(klass)) {
-                    return primitiveInverseMap.get(klass).getSuperclass();
-                } else {
-                    return klass.getSuperclass();
-                }
-            }
-            public boolean hasNext() {
-                if (firstIteration) {
-                    firstIteration = false;
-                    return true;
-                }
-                /* incrementing (changing from class to superclass) each index in the array like incrementing each digit
-                   in a number. copy[0] is least significant; copy[n - 1] is most
-                 */
-                if (copy.length == 0) {
-                    return false;
-                }
-                copy[0] = getNextClass(copy[0]);
-                for (int i = 0; i < copy.length; i++) {
-                    if (copy[i] == null) {
-                        copy[i] = classes[i];
-                        if (i + 1 < copy.length) {
-                            copy[i + 1] = getNextClass(copy[i + 1]);
-                        } else {
-                            // the most significant class has cycled - we've iterated over all permutations
-                            return false;
-                        }
-                    }
-                }
-                return true;
-            }
-            public Class<?>[] next() { return copy; }
-        };
+        final Iterator<Class<?>[]> iterator = new MultiClassInheritanceIterator(classes);
         while (iterator.hasNext()) {
             try {
                 return c.getDeclaredConstructor(iterator.next());
