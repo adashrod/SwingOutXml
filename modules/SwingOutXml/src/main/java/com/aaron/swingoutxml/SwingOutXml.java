@@ -17,6 +17,7 @@ import org.xml.sax.SAXException;
 
 import javax.swing.AbstractButton;
 import javax.swing.Action;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
@@ -88,6 +89,12 @@ public class SwingOutXml {
      * Map containing all of the containers and components created by SwingOutXml
      */
     private static final Map<String, Container> idMap = new HashMap<>();
+    /**
+     * Map containing all of the {@link javax.swing.ButtonGroup}s being used in the application. Keys are a 2-tuple of
+     * the top level container and a name for the ButtonGroup, so ButtonGroup names are namespaced by the SwingOut
+     * container.
+     */
+    private static final Map<Pair<Container, String>, ButtonGroup> buttonGroups = new HashMap<>();
 
     private static final Collection<String> awtPackages = Arrays.asList("java.awt, javax.swing".split("\\s*,\\s*"));
 
@@ -107,7 +114,7 @@ public class SwingOutXml {
     private static final String A_PREFERRED_SIZE = "preferred-size";
     private static final String A_EDITABLE = "editable";
     private static final String A_ADD = "add";
-    // button-group
+    private static final String A_BUTTON_GROUP = "button-group";
     // selection-mode
     // layout-orientation
     // cell-renderer
@@ -379,6 +386,7 @@ public class SwingOutXml {
         setFields(childElement, jComponent);
         addListeners(childElement, jComponent);
         setAction(childElement, jComponent);
+        setButtonGroup(childElement, jComponent);
         return jComponent;
     }
 
@@ -871,6 +879,21 @@ public class SwingOutXml {
                     button.setAction((Action) field.get(context));
                     // todo: override action name with xml node value (maybe)
                 } catch (final IllegalAccessException ignored) {}
+            }
+        }
+    }
+
+    private void setButtonGroup(final Element xmlElement, final JComponent component) {
+        final String groupName = DomUtils.getAttribute(A_BUTTON_GROUP, xmlElement);
+        if (groupName != null) {
+            final Pair<Container, String> key = new Pair<>(topLevelContainer, groupName);
+            final ButtonGroup buttonGroup = buttonGroups.getOrDefault(key, new ButtonGroup());
+            if (component instanceof AbstractButton) {
+                buttonGroup.add((AbstractButton) component);
+                buttonGroups.put(key, buttonGroup);
+            } else {
+                throw new IllegalArgumentException(String.format("%s attr is not allowed for %s: %s", A_BUTTON_GROUP,
+                    component.getClass().getSimpleName(), DomUtils.toString(xmlElement)));
             }
         }
     }
