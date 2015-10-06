@@ -51,8 +51,8 @@ import java.util.NoSuchElementException;
  * repeats until the entire sequence has rolled over to the original state
  */
 public class MultiClassInheritanceIterator implements Iterator<Class<?>[]>{
-    Class<?>[] currentArray;
-    Class<?>[] nextArray;
+    private Class<?>[] currentArray;
+    private final Class<?>[] nextArray;
     private final List<InheritanceIterator> iterators = new ArrayList<>();
     private boolean firstIteration;
     private boolean done;
@@ -99,6 +99,8 @@ public class MultiClassInheritanceIterator implements Iterator<Class<?>[]>{
                 nextArray[i] = iterators.get(i).next();
             }
         }
+        // reached when the "most significant class" (the last one to be incremented) no longer hasNext(), i.e. all
+        // iteration has completed and the list of classes overflowed to the original state
         done = true;
     }
 }
