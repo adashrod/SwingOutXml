@@ -115,6 +115,7 @@ public class SwingOutXml {
     private static final String A_EDITABLE = "editable";
     private static final String A_ADD = "add";
     private static final String A_BUTTON_GROUP = "button-group";
+    // default-close-operation
     // selection-mode
     // layout-orientation
     // cell-renderer
@@ -779,6 +780,7 @@ public class SwingOutXml {
             }
             final EventListener listener;
             try {
+                // todo: should probably cast this to Object since custom listeners don't need to implement EventListener
                 listener = (EventListener) field.get(context);
             } catch (final IllegalAccessException iae) {
                 // impossible
