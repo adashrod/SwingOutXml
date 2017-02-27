@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<j-dialog id="dialogChild" title="dialog child" visible="false" layout="java.awt.FlowLayout" constructor-args="{id:dialogParent}">
+    <j-label field="label1" id="d1">D1</j-label>
+    <j-label field="label2" id="d2">D2</j-label>
+    <j-label field="label3" id="d3">D3</j-label>
+</j-dialog>

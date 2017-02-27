@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<JFrame title="mouse stuff" visible="true" preferred-size="200,200">
+    <JPanel id="panel">
+        <JLabel id="label"/>
+    </JPanel>
+</JFrame>

@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<j-frame id="dialogParent" title="dialog parent" visible="true" layout="java.awt.FlowLayout">
+    <j-button id="dialogParentButton" field="button" listeners="buttonListener">click me</j-button>
+    <j-label id="dialogParentPanel" field="label">cool stuff</j-label>
+</j-frame>

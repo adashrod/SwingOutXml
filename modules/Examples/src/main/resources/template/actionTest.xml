@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<j-frame id="window" title="action!" visible="true" layout="BoxLayout" layout-constructor-args="this.rootPane.contentPane, BoxLayout.Y_AXIS">
+    <j-button id="button1"/>
+    <j-button id="button2"/>
+    <j-label id="actionHelloPanel">hello world</j-label>
+    <j-button id="button3">enable/disable other buttons</j-button>
+</j-frame>

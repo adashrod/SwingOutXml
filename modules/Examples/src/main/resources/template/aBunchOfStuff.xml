@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<j-frame title="a bunch of stuff" layout="BoxLayout" layout-constructor-args="this.rootPane.contentPane, BoxLayout.Y_AXIS" visible="true">
+    <j-panel id="p1" layout="javax.swing.BoxLayout" layout-constructor-args="this, javax.swing.BoxLayout.X_AXIS">
+        <j-button>#1</j-button>
+        <j-button>#2</j-button>
+        <j-button>#3</j-button>
+    </j-panel>
+    <j-panel id="p2" layout="BoxLayout" layout-constructor-args="{id:p2}, BoxLayout.Y_AXIS">
+        <j-label>AA</j-label>
+        <j-label>BB</j-label>
+        <j-label>CC</j-label>
+    </j-panel>
+    <j-panel id="p3" layout="FlowLayout" layout-constructor-args="FlowLayout.RIGHT, 10, 10">
+        <j-button>blah</j-button>
+        <j-label>bleh</j-label>
+        <j-label>blurgh</j-label>
+    </j-panel>
+    <j-panel id="p4" layout="GridLayout" layout-constructor-args="3, 2">
+        <j-button>1</j-button>
+        <j-label>2</j-label>
+        <j-label>3</j-label>
+        <j-button>4</j-button>
+        <j-label>5</j-label>
+        <j-label>6</j-label>
+    </j-panel>
+</j-frame>

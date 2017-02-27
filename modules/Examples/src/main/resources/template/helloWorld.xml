@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<j-frame title="hello title" visible="true" layout="java.awt.FlowLayout" constructor-args="" preferred-size="500,400">
+    <j-button id="button" field="button" listeners="buttonListener">click me</j-button>
+    <j-label field="hello" id="helloPanel">hello world</j-label>
+    <j-text-area id="textArea" add="false">a big bunch of text!
+LOOK AT ALL OF THIS TEXT
+WHOO
+O
+O
+O
+O
+OO
+OO
+OO
+OO
+OOO
+OOO
+OOO
+OOOO
+OOOOOO
+OOOOOOOOOO
+    </j-text-area>
+    <j-scroll-pane constructor-args="{id:textArea}" preferred-size="200, 200"/>
+</j-frame>

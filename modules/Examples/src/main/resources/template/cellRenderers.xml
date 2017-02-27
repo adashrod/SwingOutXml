@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<j-frame title="cell renderers" layout="BoxLayout" layout-constructor-args="this.rootPane.contentPane, BoxLayout.Y_AXIS" visible="true" preferred-size="50, 100">
+    <j-list id="myList"
+            field="list"
+            constructor-args="listModel"
+            selection-mode="javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION"
+            layout-orientation="javax.swing.JList.VERTICAL"
+            />
+</j-frame>

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<j-frame title="FancyPanel Test" visible="true" layout="java.awt.BorderLayout" preferred-size="300,200">
+    <j-component id="fancyPanel1" field="fancyPanel1" constraints="java.awt.BorderLayout.NORTH"/>
+    <com.adashrod.swingoutxmlexamples.FancyPanel id="fancyPanel2" constraints="java.awt.BorderLayout.SOUTH" lersteners="addListener(myCoolListener)"/>
+    <JLabel constraints="java.awt.BorderLayout.WEST">west</JLabel>
+    <JLabel constraints="'East'">east</JLabel>
+    <JLabel constraints="object.cent">center</JLabel>
+</j-frame>

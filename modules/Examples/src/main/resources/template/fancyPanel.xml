@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<j-panel>
+    <j-button listeners="buttonListener">make fancier</j-button>
+    <j-label field="label">so fancy</j-label>
+</j-panel>
