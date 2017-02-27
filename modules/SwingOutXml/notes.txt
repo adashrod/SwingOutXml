@@ -1,0 +1,19 @@
+Thing1.xml
+<j-panel constructor-args="0, 0, 0">
+</jpanel>
+Thing1 constructor called with (0, 0, 0)
+
+<com.adashrod.Thing1 constructor-args="1, 2, 3"/>
+individual use of Thing1 in larger class- (1, 2, 3) overrides default in XML (0, 0, 0)
+ultimately calls SwingOutXml.create(Thing1.class, 1, 2, 3); during creation
+
+SwingOutXml.create(Thing1.class, 4, 5, 6);
+individual use of Thing1 in larger class, but relationships between windows/frames/classes are specified in code instead of markup
+(4, 5, 6) overrides default (0, 0, 0)
+
+todo: namespace the xmlelement IDs with the filename? or just combo of id and Container instance as key like with ButtonGroups
+
+does parsing "null" work in ReflectionUtils.parseToken()? even if it does, a class can't be inferred from null, which would screw up constructor fetching
+could refactor InheritanceIterator to not include primitives, then make a special version of it that does include those
+
+for listeners, cell-renderer, etc attributes, add support for specifying a FQ classname and instantiating it

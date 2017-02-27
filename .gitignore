@@ -2,8 +2,6 @@
 *.iml
 /out
 todo.txt
-notes.txt
-errors.txt
 /modules/SwingOutXml/build
 /modules/Examples/build
 /target

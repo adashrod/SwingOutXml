@@ -1,0 +1,7 @@
+things to check:
+bad ID in XML
+using <j-component/>, ID points to:
+    non-JComponent
+    actual JComponent
+text in an element that doesn't support it
+element in an element that only supports text
