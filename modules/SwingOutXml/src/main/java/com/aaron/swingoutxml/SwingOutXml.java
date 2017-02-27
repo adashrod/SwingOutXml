@@ -1,5 +1,6 @@
 package com.aaron.swingoutxml;
 
+import com.aaron.swingoutxml.annotation.CellRenderer;
 import com.aaron.swingoutxml.annotation.ComponentAction;
 import com.aaron.swingoutxml.annotation.Listener;
 import com.aaron.swingoutxml.annotation.SwingOutContainer;
@@ -31,6 +32,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.ListCellRenderer;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.event.TreeWillExpandListener;
@@ -115,10 +117,11 @@ public class SwingOutXml {
     private static final String A_EDITABLE = "editable";
     private static final String A_ADD = "add";
     private static final String A_BUTTON_GROUP = "button-group";
+    private static final String A_CELL_RENDERER = "cell-renderer";
+    // todo:
     // default-close-operation
     // selection-mode
     // layout-orientation
-    // cell-renderer
     // tool-tip-text
     // modal
     // modality
@@ -159,7 +162,8 @@ public class SwingOutXml {
         this.context = context;
         final Map<String, Collection<Pair<String, Field>>> idUiComponentMap = new HashMap<>(),
             idListenerMap = new HashMap<>(),
-            idComponentActionMap = new HashMap<>();
+            idComponentActionMap = new HashMap<>(),
+            idCellRendererMap = new HashMap<>();
         for (final Field field: context.getClass().getDeclaredFields()) {
             final UiComponent uiComponent = field.getDeclaredAnnotation(UiComponent.class);
             field.setAccessible(true);
@@ -190,10 +194,19 @@ public class SwingOutXml {
                     idComponentActionMap.put(trimmedId, Collections.singleton(new Pair<>("", field)));
                 }
             }
+            final CellRenderer cellRenderer = field.getDeclaredAnnotation(CellRenderer.class);
+            if (cellRenderer != null) {
+                for (final String id: cellRenderer.value()) {
+                    final String trimmedId = id.trim();
+                    idCellRendererMap.putIfAbsent(trimmedId, new HashSet<>());
+                    idCellRendererMap.get(trimmedId).add(new Pair<>("", field));
+                }
+            }
         }
         mapMap.put(UiComponent.class, idUiComponentMap);
         mapMap.put(Listener.class, idListenerMap);
         mapMap.put(ComponentAction.class, idComponentActionMap);
+        mapMap.put(CellRenderer.class, idCellRendererMap);
     }
 
     /**
@@ -388,6 +401,7 @@ public class SwingOutXml {
         addListeners(childElement, jComponent);
         setAction(childElement, jComponent);
         setButtonGroup(childElement, jComponent);
+        setCellRenderer(childElement, jComponent);
         return jComponent;
     }
 
@@ -740,6 +754,13 @@ public class SwingOutXml {
      */
     private Field findAssociatedAction(final Element element) {
         final Set<Pair<String, Field>> fields = findAssociatedFields(element, ComponentAction.class, A_ACTION);
+        // todo: error for 2 or more
+        return !fields.isEmpty() ? fields.iterator().next().getValue() : null;
+    }
+
+    private Field findAssociatedCellRenderer(final Element element) {
+        final Set<Pair<String, Field>> fields = findAssociatedFields(element, CellRenderer.class, A_CELL_RENDERER);
+        // todo: error for 2 or more
         return !fields.isEmpty() ? fields.iterator().next().getValue() : null;
     }
 
@@ -896,6 +917,18 @@ public class SwingOutXml {
             } else {
                 throw new IllegalArgumentException(String.format("%s attr is not allowed for %s: %s", A_BUTTON_GROUP,
                     component.getClass().getSimpleName(), DomUtils.toString(xmlElement)));
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void setCellRenderer(final Element element, final JComponent component) {
+        if (component instanceof JList) {
+            final Field rendererField = findAssociatedCellRenderer(element);
+            if (rendererField != null) {
+                try {
+                    ((JList) component).setCellRenderer((ListCellRenderer) rendererField.get(context));
+                } catch (final IllegalAccessException ignored) {}
             }
         }
     }
