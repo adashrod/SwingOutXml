@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.annotation;
+package com.adashrod.swingoutxml.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

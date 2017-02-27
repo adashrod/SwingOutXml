@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.annotation;
+package com.adashrod.swingoutxml.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -50,8 +50,8 @@ import java.lang.annotation.Target;
  *
  * The field attribute in the XML has higher precedence than the value of the annotation. Since using both methods of
  * binding is redundant, if both are specified the value of the \@UiComponent annotation will be ignored.
- * @see com.aaron.swingoutxml.annotation.Listener
- * @see com.aaron.swingoutxml.annotation.ComponentAction
+ * @see com.adashrod.swingoutxml.annotation.Listener
+ * @see com.adashrod.swingoutxml.annotation.ComponentAction
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 @Target({ElementType.FIELD})

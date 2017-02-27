@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.util;
+package com.adashrod.swingoutxml.util;
 
 import java.util.Arrays;
 import java.util.Collection;

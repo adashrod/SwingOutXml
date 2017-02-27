@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.util;
+package com.adashrod.swingoutxml.util;
 
 import javafx.util.Pair;
 
@@ -214,8 +214,8 @@ public class ReflectionUtils {
 
     /**
      * Parses a token. The token could be an int, a string literal 'str' or "str", a keyword that is present in keywordMap,
-     * a constant (see {@link com.aaron.swingoutxml.util.ReflectionUtils#parseConstant(java.util.Collection, String)})
-     * or a field (see {@link com.aaron.swingoutxml.util.ReflectionUtils#parseField(Object, String)}
+     * a constant (see {@link com.adashrod.swingoutxml.util.ReflectionUtils#parseConstant(java.util.Collection, String)})
+     * or a field (see {@link com.adashrod.swingoutxml.util.ReflectionUtils#parseField(Object, String)}
      * @param context           context object for parsing fields
      * @param keywordMap        keyword map for parsing keywords
      * @param potentialPrefixes a collection of packages that the class might be in, when parsing a constant

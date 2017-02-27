@@ -1,7 +1,7 @@
-package com.aaron.swingoutxml;
+package com.adashrod.swingoutxml;
 
 /**
- * This is an optional interface to be implemented by classes annotated by \@{@link com.aaron.swingoutxml.annotation.SwingOutContainer}
+ * This is an optional interface to be implemented by classes annotated by \@{@link com.adashrod.swingoutxml.annotation.SwingOutContainer}
  * and created using {@link SwingOutXml#create(Class)}. It provides an API for one function: afterCreate(),
  * which is run after instantiation and creation of the GUI components. It can be used to attach event listeners to GUI
  * components or otherwise modifying components as an alternative to doing so in the XML.

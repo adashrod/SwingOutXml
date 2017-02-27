@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.util;
+package com.adashrod.swingoutxml.util;
 
 /**
  * Utilities for name-related tasks, such as parsing or finding class names.

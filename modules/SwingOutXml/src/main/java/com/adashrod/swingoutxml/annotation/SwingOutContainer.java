@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.annotation;
+package com.adashrod.swingoutxml.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -59,10 +59,10 @@ import java.lang.annotation.Target;
  * }
  *
  * For details on configuring XML/annotations:
- * @see com.aaron.swingoutxml.annotation.UiComponent
- * @see com.aaron.swingoutxml.annotation.Listener
- * @see com.aaron.swingoutxml.annotation.ComponentAction
- * @see com.aaron.swingoutxml.PostSetup
+ * @see com.adashrod.swingoutxml.annotation.UiComponent
+ * @see com.adashrod.swingoutxml.annotation.Listener
+ * @see com.adashrod.swingoutxml.annotation.ComponentAction
+ * @see com.adashrod.swingoutxml.PostSetup
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 @Target(ElementType.TYPE)

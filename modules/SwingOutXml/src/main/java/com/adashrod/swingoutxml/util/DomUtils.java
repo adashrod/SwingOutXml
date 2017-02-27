@@ -1,4 +1,4 @@
-package com.aaron.swingoutxml.util;
+package com.adashrod.swingoutxml.util;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
@@ -82,7 +82,7 @@ public class DomUtils {
     }
 
     /**
-     * Pretty, recursive indentation helper for {@link com.aaron.swingoutxml.util.DomUtils#toString(org.w3c.dom.Element)}
+     * Pretty, recursive indentation helper for {@link com.adashrod.swingoutxml.util.DomUtils#toString(org.w3c.dom.Element)}
      * @param element an element to stringify
      * @param indent  level of tab indentation for level of element depth
      * @return an XML-like representation of the XML element

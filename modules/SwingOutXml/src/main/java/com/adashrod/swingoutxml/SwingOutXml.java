@@ -1,14 +1,14 @@
-package com.aaron.swingoutxml;
+package com.adashrod.swingoutxml;
 
-import com.aaron.swingoutxml.annotation.CellRenderer;
-import com.aaron.swingoutxml.annotation.ComponentAction;
-import com.aaron.swingoutxml.annotation.Listener;
-import com.aaron.swingoutxml.annotation.SwingOutContainer;
-import com.aaron.swingoutxml.annotation.UiComponent;
-import com.aaron.swingoutxml.util.DomUtils;
-import com.aaron.swingoutxml.util.NameUtils;
-import com.aaron.swingoutxml.util.ReflectionUtils;
-import com.aaron.swingoutxml.xml.XmlLoader;
+import com.adashrod.swingoutxml.annotation.CellRenderer;
+import com.adashrod.swingoutxml.annotation.ComponentAction;
+import com.adashrod.swingoutxml.annotation.Listener;
+import com.adashrod.swingoutxml.annotation.SwingOutContainer;
+import com.adashrod.swingoutxml.annotation.UiComponent;
+import com.adashrod.swingoutxml.util.DomUtils;
+import com.adashrod.swingoutxml.util.NameUtils;
+import com.adashrod.swingoutxml.util.ReflectionUtils;
+import com.adashrod.swingoutxml.xml.XmlLoader;
 import javafx.util.Pair;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -74,14 +74,14 @@ import java.util.stream.Collectors;
 /**
  * SwingOutXml is used to instantiate Swing top-level containers. Instead of instantiating something that extends
  * JFrame/JDialog/etc then using add(), layout is done in an XML template file. A class implements
- * \@{@link com.aaron.swingoutxml.annotation.SwingOutContainer} and {@link SwingOutXml#create(Class, Object...)} is
+ * \@{@link com.adashrod.swingoutxml.annotation.SwingOutContainer} and {@link SwingOutXml#create(Class, Object...)} is
  * called with the class being instantiated.
  *
- * @see com.aaron.swingoutxml.annotation.SwingOutContainer
- * @see com.aaron.swingoutxml.annotation.UiComponent
- * @see com.aaron.swingoutxml.annotation.Listener
- * @see com.aaron.swingoutxml.annotation.ComponentAction
- * @see com.aaron.swingoutxml.PostSetup
+ * @see com.adashrod.swingoutxml.annotation.SwingOutContainer
+ * @see com.adashrod.swingoutxml.annotation.UiComponent
+ * @see com.adashrod.swingoutxml.annotation.Listener
+ * @see com.adashrod.swingoutxml.annotation.ComponentAction
+ * @see com.adashrod.swingoutxml.PostSetup
  * @author Aaron Rodriguez (adashrod@gmail.com)
  */
 public class SwingOutXml {
@@ -211,7 +211,7 @@ public class SwingOutXml {
 
     /**
      * Creates an instance of the swingClass and lays out its UI according to the template file specified in the
-     * {@link com.aaron.swingoutxml.annotation.SwingOutContainer} annotation. If swingClass implements
+     * {@link com.adashrod.swingoutxml.annotation.SwingOutContainer} annotation. If swingClass implements
      * {@link PostSetup}, afterCreate is run as the last step.
      * @param swingClass the class to instantiate
      * @param paramConstructorArgs arguments to pass to the construction of swingClass. Arguments can also be passed in
@@ -725,7 +725,7 @@ public class SwingOutXml {
      * Finds the fields in context that should be associated (bound) with the XML element. First tries to find
      * the field by the "field" attribute in element; if there is none, tries to find the field by its ID value of its
      * UiComponent annotation.
-     * @see com.aaron.swingoutxml.annotation.UiComponent documentation for examples
+     * @see com.adashrod.swingoutxml.annotation.UiComponent documentation for examples
      * @param element XML element corresponding to a component
      * @return the found fields
      * @throws IllegalArgumentException invalid config that didn't match a field
